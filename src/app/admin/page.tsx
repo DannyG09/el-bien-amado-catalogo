@@ -8,18 +8,32 @@ export default function AdminPage() {
 
         <div className="mx-auto max-w-7xl px-6 py-6">
 
-          <p className="text-sm text-gray-500">
-            El Bien Amado Rent A Car
-          </p>
+          <div className="flex items-center justify-between">
 
-          <h1 className="mt-1 text-3xl font-bold">
-            Panel administrativo
-          </h1>
+            <div>
+              <p className="text-sm text-gray-500">
+                El Bien Amado Rent A Car
+              </p>
+
+              <h1 className="mt-1 text-3xl font-bold">
+                Panel administrativo
+              </h1>
+            </div>
+
+            <form action="/api/logout" method="POST">
+              <button
+                type="submit"
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                Cerrar sesión
+              </button>
+            </form>
+
+          </div>
 
         </div>
 
       </header>
-
 
       <section className="mx-auto max-w-7xl px-6 py-10">
 
@@ -29,7 +43,6 @@ export default function AdminPage() {
             href="/admin/vehiculos"
             className="rounded-2xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
           >
-
             <div className="text-4xl">
               🚘
             </div>
@@ -41,9 +54,7 @@ export default function AdminPage() {
             <p className="mt-2 text-sm text-gray-500">
               Agregar, editar y administrar los vehículos del catálogo.
             </p>
-
           </Link>
-
 
           <div className="rounded-2xl bg-white p-6 shadow-sm">
 
@@ -60,7 +71,6 @@ export default function AdminPage() {
             </p>
 
           </div>
-
 
           <div className="rounded-2xl bg-white p-6 shadow-sm">
 
@@ -85,3 +95,4 @@ export default function AdminPage() {
     </main>
   );
 }
+

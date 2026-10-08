@@ -14,7 +14,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "El Bien Amado Rent A Car",
-  description: "Alquiler de vehículos en República Dominicana",
+  description: "Alquiler de vehículos",
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
