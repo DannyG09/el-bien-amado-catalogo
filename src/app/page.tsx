@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Car,
   ShieldCheck,
@@ -11,6 +11,9 @@ import {
   ArrowRight,
   Star,
   MessageCircle,
+  Search,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 
 /*
@@ -47,26 +50,145 @@ type Vehiculo = {
   disponible: boolean;
 };
 
+type Orden = "reciente" | "precio-asc" | "precio-desc" | "anio-desc" | "marca-asc";
+
+const OPCIONES_ORDEN: { id: Orden; label: string }[] = [
+  { id: "reciente", label: "Más recientes" },
+  { id: "precio-asc", label: "Precio: menor a mayor" },
+  { id: "precio-desc", label: "Precio: mayor a menor" },
+  { id: "anio-desc", label: "Año: más nuevo primero" },
+  { id: "marca-asc", label: "Marca: A-Z" },
+];
+
+const campoClase =
+  "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#D4202C] focus:ring-2 focus:ring-[#D4202C]/20";
+
 export default function Home() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [cargando, setCargando] = useState(true);
+
+  // FILTROS
+  const [busqueda, setBusqueda] = useState("");
+  const [soloDisponibles, setSoloDisponibles] = useState(false);
+  const [orden, setOrden] = useState<Orden>("reciente");
+  const [marcaFiltro, setMarcaFiltro] = useState("todas");
+  const [seguroFiltro, setSeguroFiltro] = useState("todos");
+  const [precioMin, setPrecioMin] = useState("");
+  const [precioMax, setPrecioMax] = useState("");
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
 
   useEffect(() => {
     obtenerVehiculos();
   }, []);
 
   async function obtenerVehiculos() {
-    try {
-      const response = await fetch("/api/vehiculos");
-      if (!response.ok) throw new Error("Error al obtener vehículos");
-      const data = await response.json();
-      setVehiculos(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setCargando(false);
+  try {
+    setCargando(true);
+
+    const response = await fetch("/api/vehiculos");
+
+    if (!response.ok) {
+      throw new Error("Error al obtener vehículos");
     }
+
+    const data = await response.json();
+
+    const vehiculosNormalizados: Vehiculo[] = data.map(
+      (vehiculo: any) => ({
+        id: Number(vehiculo.id),
+        marca: vehiculo.marca ?? "",
+        modelo: vehiculo.modelo ?? "",
+        anio: Number(vehiculo.anio),
+        placa: vehiculo.placa ?? "",
+        color: vehiculo.color ?? "",
+
+        // Compatible con PostgreSQL y con la respuesta anterior
+        tipoSeguro:
+          vehiculo.tipoSeguro ??
+          vehiculo.tiposeguro ??
+          "No especificado",
+
+        precioDia: Number(
+          vehiculo.precioDia ??
+          vehiculo.preciodia ??
+          0
+        ),
+
+        imagen: vehiculo.imagen ?? null,
+        descripcion: vehiculo.descripcion ?? null,
+        disponible: Boolean(vehiculo.disponible),
+      })
+    );
+
+    setVehiculos(vehiculosNormalizados);
+  } catch (error) {
+    console.error("Error al cargar vehículos:", error);
+  } finally {
+    setCargando(false);
   }
+}
+
+  const marcas = useMemo(
+    () => Array.from(new Set(vehiculos.map((v) => v.marca))).sort(),
+    [vehiculos]
+  );
+
+  const seguros = useMemo(
+    () => Array.from(new Set(vehiculos.map((v) => v.tipoSeguro))).sort(),
+    [vehiculos]
+  );
+
+  const hayFiltrosActivos =
+    busqueda !== "" ||
+    soloDisponibles ||
+    orden !== "reciente" ||
+    marcaFiltro !== "todas" ||
+    seguroFiltro !== "todos" ||
+    precioMin !== "" ||
+    precioMax !== "";
+
+  function limpiarFiltros() {
+    setBusqueda("");
+    setSoloDisponibles(false);
+    setOrden("reciente");
+    setMarcaFiltro("todas");
+    setSeguroFiltro("todos");
+    setPrecioMin("");
+    setPrecioMax("");
+  }
+
+  const filtrados = useMemo(() => {
+    const texto = busqueda.trim().toLowerCase();
+    const min = precioMin === "" ? null : Number(precioMin);
+    const max = precioMax === "" ? null : Number(precioMax);
+
+    const lista = vehiculos.filter((v) => {
+      if (soloDisponibles && !v.disponible) return false;
+      if (marcaFiltro !== "todas" && v.marca !== marcaFiltro) return false;
+      if (seguroFiltro !== "todos" && v.tipoSeguro !== seguroFiltro) return false;
+      if (min !== null && Number(v.precioDia) < min) return false;
+      if (max !== null && Number(v.precioDia) > max) return false;
+      if (!texto) return true;
+      return `${v.marca} ${v.modelo} ${v.color} ${v.anio}`
+        .toLowerCase()
+        .includes(texto);
+    });
+
+    return [...lista].sort((a, b) => {
+      switch (orden) {
+        case "precio-asc":
+          return Number(a.precioDia) - Number(b.precioDia);
+        case "precio-desc":
+          return Number(b.precioDia) - Number(a.precioDia);
+        case "anio-desc":
+          return b.anio - a.anio;
+        case "marca-asc":
+          return `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`);
+        default:
+          return b.id - a.id;
+      }
+    });
+  }, [vehiculos, busqueda, soloDisponibles, orden, marcaFiltro, seguroFiltro, precioMin, precioMax]);
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -248,6 +370,161 @@ export default function Home() {
             </div>
           </div>
 
+          {/* FILTROS */}
+          {!cargando && vehiculos.length > 0 && (
+            <div className="mb-10 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 sm:p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="relative flex-1">
+                  <Search
+                    size={18}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    type="text"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar por marca, modelo, color o año..."
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-[#D4202C] focus:bg-white focus:ring-2 focus:ring-[#D4202C]/20"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSoloDisponibles(!soloDisponibles)}
+                    className={
+                      soloDisponibles
+                        ? "flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-bold text-white md:flex-none"
+                        : "flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-200 md:flex-none"
+                    }
+                  >
+                    <span
+                      className={
+                        soloDisponibles
+                          ? "h-2 w-2 rounded-full bg-green-400"
+                          : "h-2 w-2 rounded-full bg-green-500"
+                      }
+                    />
+                    Solo disponibles
+                  </button>
+
+                  <button
+                    onClick={() => setMostrarFiltros(!mostrarFiltros)}
+                    className={
+                      mostrarFiltros
+                        ? "flex items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-4 py-3 text-sm font-bold text-white"
+                        : "flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:border-[#D4202C] hover:text-[#D4202C]"
+                    }
+                  >
+                    <SlidersHorizontal size={17} />
+                    Filtros
+                  </button>
+                </div>
+              </div>
+
+              {mostrarFiltros && (
+                <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-5">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-gray-500">
+                      Ordenar por
+                    </span>
+                    <select
+                      value={orden}
+                      onChange={(e) => setOrden(e.target.value as Orden)}
+                      className={campoClase}
+                    >
+                      {OPCIONES_ORDEN.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-gray-500">
+                      Marca
+                    </span>
+                    <select
+                      value={marcaFiltro}
+                      onChange={(e) => setMarcaFiltro(e.target.value)}
+                      className={campoClase}
+                    >
+                      <option value="todas">Todas las marcas</option>
+                      {marcas.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-gray-500">
+                      Seguro
+                    </span>
+                    <select
+                      value={seguroFiltro}
+                      onChange={(e) => setSeguroFiltro(e.target.value)}
+                      className={campoClase}
+                    >
+                      <option value="todos">Todos</option>
+                      {seguros.map((sg) => (
+                        <option key={sg} value={sg}>
+                          {sg}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-gray-500">
+                      Precio mínimo (USD$)
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={precioMin}
+                      onChange={(e) => setPrecioMin(e.target.value)}
+                      placeholder="0"
+                      className={campoClase}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-gray-500">
+                      Precio máximo (USD$)
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={precioMax}
+                      onChange={(e) => setPrecioMax(e.target.value)}
+                      placeholder="Sin límite"
+                      className={campoClase}
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center justify-between gap-3 text-sm text-gray-500">
+                <p>
+                  Mostrando <strong className="text-gray-900">{filtrados.length}</strong> de{" "}
+                  {vehiculos.length} vehículos
+                </p>
+
+                {hayFiltrosActivos && (
+                  <button
+                    onClick={limpiarFiltros}
+                    className="flex items-center gap-1 font-bold text-[#D4202C] hover:underline"
+                  >
+                    <X size={15} />
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {cargando ? (
             <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((item) => (
@@ -265,9 +542,23 @@ export default function Home() {
                 Actualmente no hay vehículos disponibles en el catálogo.
               </p>
             </div>
+          ) : filtrados.length === 0 ? (
+            <div className="rounded-2xl border bg-white p-16 text-center">
+              <Search size={45} className="mx-auto text-gray-300" />
+              <h3 className="mt-5 text-xl font-bold">No encontramos vehículos</h3>
+              <p className="mt-2 text-gray-500">
+                Prueba con otra búsqueda o cambia los filtros.
+              </p>
+              <button
+                onClick={limpiarFiltros}
+                className="mt-6 rounded-lg bg-[#D4202C] px-6 py-3 text-sm font-bold text-white transition hover:bg-black"
+              >
+                Limpiar filtros
+              </button>
+            </div>
           ) : (
             <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
-              {vehiculos.map((vehiculo) => (
+              {filtrados.map((vehiculo) => (
                 <article
                   key={vehiculo.id}
                   className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-2 hover:border-[#D4202C] hover:shadow-2xl"
@@ -303,7 +594,7 @@ export default function Home() {
                     <div className="absolute bottom-0 right-0 rounded-tl-2xl bg-[#D4202C] px-5 py-3 text-white">
                       <p className="text-[10px] text-red-100">Desde</p>
                       <p className="font-extrabold">
-                        RD$ {Number(vehiculo.precioDia).toLocaleString("es-DO")}
+                        USD$ {Number(vehiculo.precioDia).toLocaleString("es-DO")}
                         <span className="ml-1 text-xs font-normal text-red-100">
                           / día
                         </span>
