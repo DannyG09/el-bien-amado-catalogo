@@ -6,5 +6,6 @@ export async function POST(request: Request) {
 
   cookieStore.delete("admin_session");
 
-  return NextResponse.redirect(new URL("/admin", request.url));
+  return NextResponse.redirect(new URL("/", request.url));
 }
+
