@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -17,22 +18,25 @@ import {
 } from "lucide-react";
 
 /*
-  PALETA DEL LOGO
-  Negro   -> bg-black
-  Rojo    -> #D4202C  (usado como bg-[#D4202C], text-[#D4202C])
-  Blanco  -> bg-white
-
-  LOGO: guarda tu imagen en  /public/logo.jpeg
+  EL BIEN AMADO RENT A CAR
+  Colores: negro, rojo y blanco
+  Logo: /public/logo.jpeg
 */
 
 const WHATSAPP_NUMERO = "18299212615";
+
 const MENSAJE_BASE =
   "Hola, quiero agendar un vehículo. Me gustaría recibir información sobre disponibilidad y precios.";
 
-function linkWhatsApp(vehiculo?: { marca: string; modelo: string; anio: number }) {
+function linkWhatsApp(vehiculo?: {
+  marca: string;
+  modelo: string;
+  anio: number;
+}) {
   const mensaje = vehiculo
     ? `${MENSAJE_BASE} Me interesa el ${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}.`
     : MENSAJE_BASE;
+
   return `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensaje)}`;
 }
 
@@ -50,7 +54,12 @@ type Vehiculo = {
   disponible: boolean;
 };
 
-type Orden = "reciente" | "precio-asc" | "precio-desc" | "anio-desc" | "marca-asc";
+type Orden =
+  | "reciente"
+  | "precio-asc"
+  | "precio-desc"
+  | "anio-desc"
+  | "marca-asc";
 
 const OPCIONES_ORDEN: { id: Orden; label: string }[] = [
   { id: "reciente", label: "Más recientes" },
@@ -67,7 +76,7 @@ export default function Home() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  // FILTROS
+  // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [soloDisponibles, setSoloDisponibles] = useState(false);
   const [orden, setOrden] = useState<Orden>("reciente");
@@ -82,51 +91,50 @@ export default function Home() {
   }, []);
 
   async function obtenerVehiculos() {
-  try {
-    setCargando(true);
+    try {
+      setCargando(true);
 
-    const response = await fetch("/api/vehiculos");
+      const response = await fetch("/api/vehiculos");
 
-    if (!response.ok) {
-      throw new Error("Error al obtener vehículos");
+      if (!response.ok) {
+        throw new Error("Error al obtener vehículos");
+      }
+
+      const data = await response.json();
+
+      const vehiculosNormalizados: Vehiculo[] = data.map(
+        (vehiculo: any) => ({
+          id: Number(vehiculo.id),
+          marca: vehiculo.marca ?? "",
+          modelo: vehiculo.modelo ?? "",
+          anio: Number(vehiculo.anio),
+          placa: vehiculo.placa ?? "",
+          color: vehiculo.color ?? "",
+          tipoSeguro:
+            vehiculo.tipoSeguro ??
+            vehiculo.tiposeguro ??
+            "No especificado",
+          precioDia: Number(
+            vehiculo.precioDia ??
+              vehiculo.preciodia ??
+              0
+          ),
+          imagen: vehiculo.imagen ?? null,
+          descripcion: vehiculo.descripcion ?? null,
+          disponible:
+            vehiculo.disponible === true ||
+            vehiculo.disponible === 1 ||
+            vehiculo.disponible === "true",
+        })
+      );
+
+      setVehiculos(vehiculosNormalizados);
+    } catch (error) {
+      console.error("Error al cargar vehículos:", error);
+    } finally {
+      setCargando(false);
     }
-
-    const data = await response.json();
-
-    const vehiculosNormalizados: Vehiculo[] = data.map(
-      (vehiculo: any) => ({
-        id: Number(vehiculo.id),
-        marca: vehiculo.marca ?? "",
-        modelo: vehiculo.modelo ?? "",
-        anio: Number(vehiculo.anio),
-        placa: vehiculo.placa ?? "",
-        color: vehiculo.color ?? "",
-
-        // Compatible con PostgreSQL y con la respuesta anterior
-        tipoSeguro:
-          vehiculo.tipoSeguro ??
-          vehiculo.tiposeguro ??
-          "No especificado",
-
-        precioDia: Number(
-          vehiculo.precioDia ??
-          vehiculo.preciodia ??
-          0
-        ),
-
-        imagen: vehiculo.imagen ?? null,
-        descripcion: vehiculo.descripcion ?? null,
-        disponible: Boolean(vehiculo.disponible),
-      })
-    );
-
-    setVehiculos(vehiculosNormalizados);
-  } catch (error) {
-    console.error("Error al cargar vehículos:", error);
-  } finally {
-    setCargando(false);
   }
-}
 
   const marcas = useMemo(
     () => Array.from(new Set(vehiculos.map((v) => v.marca))).sort(),
@@ -164,11 +172,20 @@ export default function Home() {
 
     const lista = vehiculos.filter((v) => {
       if (soloDisponibles && !v.disponible) return false;
-      if (marcaFiltro !== "todas" && v.marca !== marcaFiltro) return false;
-      if (seguroFiltro !== "todos" && v.tipoSeguro !== seguroFiltro) return false;
+
+      if (marcaFiltro !== "todas" && v.marca !== marcaFiltro) {
+        return false;
+      }
+
+      if (seguroFiltro !== "todos" && v.tipoSeguro !== seguroFiltro) {
+        return false;
+      }
+
       if (min !== null && Number(v.precioDia) < min) return false;
       if (max !== null && Number(v.precioDia) > max) return false;
+
       if (!texto) return true;
+
       return `${v.marca} ${v.modelo} ${v.color} ${v.anio}`
         .toLowerCase()
         .includes(texto);
@@ -183,12 +200,23 @@ export default function Home() {
         case "anio-desc":
           return b.anio - a.anio;
         case "marca-asc":
-          return `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`);
+          return `${a.marca} ${a.modelo}`.localeCompare(
+            `${b.marca} ${b.modelo}`
+          );
         default:
           return b.id - a.id;
       }
     });
-  }, [vehiculos, busqueda, soloDisponibles, orden, marcaFiltro, seguroFiltro, precioMin, precioMax]);
+  }, [
+    vehiculos,
+    busqueda,
+    soloDisponibles,
+    orden,
+    marcaFiltro,
+    seguroFiltro,
+    precioMin,
+    precioMax,
+  ]);
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -201,6 +229,7 @@ export default function Home() {
               alt="El Bien Amado Rent A Car"
               className="h-14 w-14 rounded-full ring-2 ring-[#D4202C]"
             />
+
             <div className="hidden sm:block">
               <p className="text-lg font-extrabold leading-none tracking-tight">
                 El Bien <span className="text-[#D4202C]">Amado</span>
@@ -251,9 +280,8 @@ export default function Home() {
           />
           <div className="absolute inset-0 bg-black/70" />
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-black/10" />
-          {/* Franja roja diagonal, eco del escudo del logo */}
-          <div className="absolute -right-40 top-0 h-full w-72 skew-x-[-14deg] bg-[#D4202C]/90 hidden lg:block" />
-          <div className="absolute -right-10 top-0 h-full w-6 skew-x-[-14deg] bg-white/90 hidden lg:block" />
+          <div className="absolute -right-40 top-0 hidden h-full w-72 skew-x-[-14deg] bg-[#D4202C]/90 lg:block" />
+          <div className="absolute -right-10 top-0 hidden h-full w-6 skew-x-[-14deg] bg-white/90 lg:block" />
         </div>
 
         <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-12 px-6 pt-28 lg:grid-cols-[1.3fr_1fr]">
@@ -331,9 +359,21 @@ export default function Home() {
       <section id="servicios" className="border-b bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-16 md:grid-cols-3">
           {[
-            [ShieldCheck, "Seguridad y confianza", "Vehículos preparados para ofrecerte una experiencia de alquiler segura."],
-            [CalendarDays, "Alquiler flexible", "Elige tus fechas y consulta la posibilidad de extender tu alquiler."],
-            [Headphones, "Atención personalizada", "Te acompañamos durante todo el proceso de alquiler."],
+            [
+              ShieldCheck,
+              "Seguridad y confianza",
+              "Vehículos preparados para ofrecerte una experiencia de alquiler segura.",
+            ],
+            [
+              CalendarDays,
+              "Alquiler flexible",
+              "Elige tus fechas y consulta la posibilidad de extender tu alquiler.",
+            ],
+            [
+              Headphones,
+              "Atención personalizada",
+              "Te acompañamos durante todo el proceso de alquiler.",
+            ],
           ].map(([Icon, titulo, texto]: any) => (
             <div key={titulo} className="flex gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-black text-white">
@@ -346,6 +386,7 @@ export default function Home() {
             </div>
           ))}
         </div>
+
         <div className="h-1 bg-[#D4202C]" />
       </section>
 
@@ -508,8 +549,9 @@ export default function Home() {
 
               <div className="mt-4 flex items-center justify-between gap-3 text-sm text-gray-500">
                 <p>
-                  Mostrando <strong className="text-gray-900">{filtrados.length}</strong> de{" "}
-                  {vehiculos.length} vehículos
+                  Mostrando{" "}
+                  <strong className="text-gray-900">{filtrados.length}</strong>{" "}
+                  de {vehiculos.length} vehículos
                 </p>
 
                 {hayFiltrosActivos && (
@@ -537,7 +579,9 @@ export default function Home() {
           ) : vehiculos.length === 0 ? (
             <div className="rounded-2xl border bg-white p-16 text-center">
               <Car size={45} className="mx-auto text-gray-300" />
-              <h3 className="mt-5 text-xl font-bold">No hay vehículos registrados</h3>
+              <h3 className="mt-5 text-xl font-bold">
+                No hay vehículos registrados
+              </h3>
               <p className="mt-2 text-gray-500">
                 Actualmente no hay vehículos disponibles en el catálogo.
               </p>
@@ -545,7 +589,9 @@ export default function Home() {
           ) : filtrados.length === 0 ? (
             <div className="rounded-2xl border bg-white p-16 text-center">
               <Search size={45} className="mx-auto text-gray-300" />
-              <h3 className="mt-5 text-xl font-bold">No encontramos vehículos</h3>
+              <h3 className="mt-5 text-xl font-bold">
+                No encontramos vehículos
+              </h3>
               <p className="mt-2 text-gray-500">
                 Prueba con otra búsqueda o cambia los filtros.
               </p>
@@ -572,7 +618,11 @@ export default function Home() {
                       />
                     ) : (
                       <div className="flex h-64 items-center justify-center bg-gray-100">
-                        <Car size={65} strokeWidth={1} className="text-gray-300" />
+                        <Car
+                          size={65}
+                          strokeWidth={1}
+                          className="text-gray-300"
+                        />
                       </div>
                     )}
 
@@ -587,7 +637,9 @@ export default function Home() {
                         {vehiculo.disponible && (
                           <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
                         )}
-                        {vehiculo.disponible ? "Disponible" : "No disponible"}
+                        {vehiculo.disponible
+                          ? "Disponible"
+                          : "No disponible"}
                       </span>
                     </div>
 
@@ -606,6 +658,7 @@ export default function Home() {
                     <p className="text-xs font-semibold text-gray-400">
                       {vehiculo.anio}
                     </p>
+
                     <h3 className="mt-1 text-xl font-extrabold">
                       {vehiculo.marca} {vehiculo.modelo}
                     </h3>
@@ -617,6 +670,7 @@ export default function Home() {
                           {vehiculo.tipoSeguro}
                         </p>
                       </div>
+
                       <div className="rounded-xl bg-gray-50 p-3">
                         <p className="text-[11px] text-gray-400">Color</p>
                         <p className="mt-1 text-sm font-semibold">
@@ -625,24 +679,35 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {vehiculo.disponible ? (
+                    {/* DETALLES Y RESERVA */}
+                    <div className="mt-6 grid grid-cols-2 gap-3">
                       <a
-                        href={linkWhatsApp(vehiculo)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-[#D4202C] py-3.5 text-sm font-bold text-white transition hover:bg-black"
+                        href={`/vehiculos/${vehiculo.id}`}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-black px-2 py-3.5 text-sm font-bold text-black transition hover:bg-black hover:text-white"
                       >
-                        <MessageCircle size={18} />
-                        Reservar por WhatsApp
+                        Ver detalles
+                        <ArrowRight size={17} />
                       </a>
-                    ) : (
-                      <button
-                        disabled
-                        className="mt-6 w-full cursor-not-allowed rounded-lg bg-gray-100 py-3.5 text-sm font-bold text-gray-400"
-                      >
-                        No disponible
-                      </button>
-                    )}
+
+                      {vehiculo.disponible ? (
+                        <a
+                          href={linkWhatsApp(vehiculo)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#D4202C] px-2 py-3.5 text-sm font-bold text-white transition hover:bg-black"
+                        >
+                          <MessageCircle size={18} />
+                          Reservar
+                        </a>
+                      ) : (
+                        <button
+                          disabled
+                          className="w-full cursor-not-allowed rounded-lg bg-gray-100 px-2 py-3.5 text-sm font-bold text-gray-400"
+                        >
+                          No disponible
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </article>
               ))}
@@ -654,6 +719,7 @@ export default function Home() {
       {/* BANNER FINAL */}
       <section className="relative overflow-hidden bg-black">
         <div className="absolute -left-20 top-0 h-full w-40 skew-x-[-14deg] bg-[#D4202C]" />
+
         <div className="relative mx-auto max-w-7xl px-6 py-20">
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div className="md:pl-20">
@@ -662,6 +728,7 @@ export default function Home() {
                 <br />
                 Nuestro compromiso.
               </h2>
+
               <p className="mt-5 max-w-xl leading-7 text-gray-400">
                 Queremos que alquilar un vehículo sea una experiencia sencilla
                 desde el primer momento hasta la devolución.
@@ -671,9 +738,14 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <Star size={24} className="text-[#D4202C]" />
-                <p className="mt-4 text-2xl font-extrabold text-white">Calidad</p>
-                <p className="mt-1 text-sm text-gray-500">Vehículos seleccionados</p>
+                <p className="mt-4 text-2xl font-extrabold text-white">
+                  Calidad
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Vehículos seleccionados
+                </p>
               </div>
+
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <MapPin size={24} className="text-[#D4202C]" />
                 <p className="mt-4 text-2xl font-extrabold text-white">RD</p>
@@ -688,20 +760,28 @@ export default function Home() {
       <footer className="border-t-4 border-[#D4202C] bg-black">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.jpeg" alt="" className="h-12 w-12 rounded-full" />
+            <img
+              src="/logo.jpeg"
+              alt="El Bien Amado Rent A Car"
+              className="h-12 w-12 rounded-full"
+            />
+
             <div>
-              <p className="font-bold text-white">El Bien Amado Rent A Car</p>
+              <p className="font-bold text-white">
+                El Bien Amado Rent A Car
+              </p>
               <p className="mt-1 text-sm text-gray-500">
                 Tu próximo viaje comienza aquí.
               </p>
             </div>
           </div>
+
           <p className="text-sm text-gray-600">
             © {new Date().getFullYear()} El Bien Amado. Todos los derechos reservados.
           </p>
         </div>
       </footer>
-      
+
       {/* BOTÓN FLOTANTE DE WHATSAPP */}
       <a
         href={linkWhatsApp()}

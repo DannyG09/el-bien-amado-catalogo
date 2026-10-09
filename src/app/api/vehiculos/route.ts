@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { getConnection } from "../../lib/db";
 import { isAdminAuthenticated } from "../../lib/auth";
@@ -26,17 +27,40 @@ export async function GET() {
       ORDER BY id DESC
     `);
 
-    return NextResponse.json(result.rows);
+    const vehiculos = result.rows.map(
+      (vehiculo: Record<string, unknown>) => ({
+        ...vehiculo,
+        id: Number(vehiculo.id),
+        anio: Number(vehiculo.anio),
+        precioDia: Number(vehiculo.precioDia ?? 0),
+        descripcion:
+          typeof vehiculo.descripcion === "string" &&
+          vehiculo.descripcion.trim() !== ""
+            ? vehiculo.descripcion.trim()
+            : null,
+        imagen:
+          typeof vehiculo.imagen === "string" &&
+          vehiculo.imagen.trim() !== ""
+            ? vehiculo.imagen
+            : null,
+        disponible:
+          vehiculo.disponible === true ||
+          vehiculo.disponible === 1 ||
+          vehiculo.disponible === "true",
+      })
+    );
+
+    return NextResponse.json(vehiculos, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     console.error("Error al consultar vehículos:", error);
 
     return NextResponse.json(
-      {
-        error: "No se pudieron obtener los vehículos",
-      },
-      {
-        status: 500,
-      }
+      { error: "No se pudieron obtener los vehículos." },
+      { status: 500 }
     );
   }
 }
@@ -44,7 +68,7 @@ export async function GET() {
 // POST /api/vehiculos
 export async function POST(request: Request) {
   try {
-    // 1. Comprobar que exista una sesión válida de administrador
+    // 1. Verificar la sesión del administrador.
     const autorizado = await isAdminAuthenticated();
 
     if (!autorizado) {
@@ -54,7 +78,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Leer y validar los datos recibidos
+    // 2. Leer los datos recibidos.
     const body = await request.json();
 
     const {
@@ -70,15 +94,24 @@ export async function POST(request: Request) {
       disponible,
     } = body ?? {};
 
+    // 3. Validar los campos obligatorios.
     if (
-      typeof marca !== "string" || !marca.trim() ||
-      typeof modelo !== "string" || !modelo.trim() ||
-      typeof placa !== "string" || !placa.trim() ||
-      typeof color !== "string" || !color.trim() ||
-      typeof tipoSeguro !== "string" || !tipoSeguro.trim()
+      typeof marca !== "string" ||
+      !marca.trim() ||
+      typeof modelo !== "string" ||
+      !modelo.trim() ||
+      typeof placa !== "string" ||
+      !placa.trim() ||
+      typeof color !== "string" ||
+      !color.trim() ||
+      typeof tipoSeguro !== "string" ||
+      !tipoSeguro.trim()
     ) {
       return NextResponse.json(
-        { error: "Completa correctamente los campos obligatorios." },
+        {
+          error:
+            "Completa correctamente la marca, el modelo, la placa, el color y el tipo de seguro.",
+        },
         { status: 400 }
       );
     }
@@ -97,10 +130,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (
-      !Number.isFinite(precioNumero) ||
-      precioNumero <= 0
-    ) {
+    if (!Number.isFinite(precioNumero) || precioNumero <= 0) {
       return NextResponse.json(
         { error: "El precio por día debe ser mayor que cero." },
         { status: 400 }
@@ -118,21 +148,48 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Guardar el vehículo en la base de datos
+    // La descripción puede contener varias características separadas
+    // por comas, punto y coma o saltos de línea.
+    const descripcionLimpia =
+      typeof descripcion === "string" && descripcion.trim()
+        ? descripcion.trim()
+        : null;
+
+    const imagenLimpia =
+      typeof imagen === "string" && imagen.trim()
+        ? imagen.trim()
+        : null;
+
+    // 4. Guardar el vehículo.
     const pool = await getConnection();
 
     const result = await pool.query(
       `
       INSERT INTO vehiculos (
-        marca, modelo, anio, placa, color, tiposeguro,
-        preciodia, imagen, descripcion, disponible
+        marca,
+        modelo,
+        anio,
+        placa,
+        color,
+        tiposeguro,
+        preciodia,
+        imagen,
+        descripcion,
+        disponible
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING
-        id, marca, modelo, anio, placa, color,
+        id,
+        marca,
+        modelo,
+        anio,
+        placa,
+        color,
         tiposeguro AS "tipoSeguro",
         preciodia AS "precioDia",
-        imagen, descripcion, disponible
+        imagen,
+        descripcion,
+        disponible
       `,
       [
         marca.trim(),
@@ -142,18 +199,34 @@ export async function POST(request: Request) {
         color.trim(),
         tipoSeguro.trim(),
         precioNumero,
-        imagen || null,
-        descripcion || null,
+        imagenLimpia,
+        descripcionLimpia,
         disponible ?? true,
       ]
     );
 
-    return NextResponse.json(result.rows[0], { status: 201 });
+    const vehiculo = result.rows[0];
+
+    return NextResponse.json(
+      {
+        ...vehiculo,
+        id: Number(vehiculo.id),
+        anio: Number(vehiculo.anio),
+        precioDia: Number(vehiculo.precioDia),
+        descripcion: vehiculo.descripcion ?? null,
+        imagen: vehiculo.imagen ?? null,
+        disponible: vehiculo.disponible === true,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error al registrar vehículo:", error);
 
     return NextResponse.json(
-      { error: "No se pudo registrar el vehículo. Verifica los datos e inténtalo nuevamente." },
+      {
+        error:
+          "No se pudo registrar el vehículo. Verifica los datos e inténtalo nuevamente.",
+      },
       { status: 500 }
     );
   }
