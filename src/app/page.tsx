@@ -701,6 +701,19 @@ export default function Home() {
           </p>
         </div>
       </footer>
+      
+      {/* BOTÓN FLOTANTE DE WHATSAPP */}
+      <a
+        href={linkWhatsApp()}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Contactar por WhatsApp"
+        title="Escríbenos por WhatsApp"
+        className="fixed bottom-6 right-6 z-[100] flex h-16 w-16 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-black/25 transition duration-300 hover:scale-110 hover:bg-[#1ebe5d] focus:outline-none focus:ring-4 focus:ring-green-300"
+      >
+        <MessageCircle size={32} strokeWidth={2.5} />
+        <span className="absolute right-0 top-0 h-4 w-4 rounded-full border-2 border-white bg-red-500" />
+      </a>
     </main>
   );
 }
