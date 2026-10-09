@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { clearAdminSession } from "../../lib/auth";
+
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies();
+  await clearAdminSession();
 
-  cookieStore.delete("admin_session");
-
-  return NextResponse.redirect(new URL("/", request.url));
+  return NextResponse.redirect(new URL("/", request.url), 303);
 }
 

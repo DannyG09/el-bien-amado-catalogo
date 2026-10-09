@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getConnection } from "../../../lib/db";
+import { isAdminAuthenticated } from "../../../lib/auth";
 
 export const runtime = "nodejs";
 
@@ -74,7 +75,16 @@ export async function PUT(
   request: Request,
   { params }: Params
 ) {
-  try {
+    try {
+    const authenticated = await isAdminAuthenticated();
+
+    if (!authenticated) {
+      return NextResponse.json(
+        { error: "No autorizado. Debes iniciar sesión como administrador." },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
 
     const body = await request.json();
@@ -175,7 +185,16 @@ export async function DELETE(
   request: Request,
   { params }: Params
 ) {
-  try {
+    try {
+    const authenticated = await isAdminAuthenticated();
+
+    if (!authenticated) {
+      return NextResponse.json(
+        { error: "No autorizado. Debes iniciar sesión como administrador." },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
 
     const pool = await getConnection();

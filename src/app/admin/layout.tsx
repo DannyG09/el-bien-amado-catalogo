@@ -1,15 +1,16 @@
-import { cookies } from "next/headers";
+import { isAdminAuthenticated } from "../lib/auth";
 import { redirect } from "next/navigation";
+
+export const runtime = "nodejs";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const session = cookieStore.get("admin_session");
+  const authenticated = await isAdminAuthenticated();
 
-  if (session?.value !== "authenticated") {
+  if (!authenticated) {
     redirect("/login");
   }
 

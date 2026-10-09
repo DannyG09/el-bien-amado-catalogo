@@ -163,6 +163,14 @@ export default function VehiculosAdminPage() {
               alt="El Bien Amado Rent A Car"
               className="h-14 w-14 rounded-full ring-2 ring-[#D4202C]"
             />
+            <form action="/api/logout" method="POST">
+              <button
+                type="submit"
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                Cerrar sesión
+              </button>
+            </form>
             <div>
               <p className="text-xs font-semibold tracking-[0.25em] text-gray-400">
                 ADMINISTRACIÓN
