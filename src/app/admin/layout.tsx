@@ -1,5 +1,6 @@
 import { isAdminAuthenticated } from "../lib/auth";
 import { redirect } from "next/navigation";
+import AdminSidebar from "./AdminSidebar";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,10 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen bg-gray-100 lg:flex">
+      <AdminSidebar />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
 }
-

@@ -6,6 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import VehicleCard from "./components/VehicleCard";
 import type { Vehiculo } from "./types/vehiculo";
 import {
+  guardarIdioma,
+  useIdioma,
+  type Idioma,
+} from "./lib/idioma";
+import {
   Car,
   ShieldCheck,
   CalendarDays,
@@ -32,11 +37,12 @@ import {
 
 const WHATSAPP_NUMERO = "18299212615";
 
-const MENSAJE_BASE =
-  "Hola, quiero agendar un vehículo. Me gustaría recibir información sobre disponibilidad y precios.";
-
-function linkWhatsApp() {
-  return `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(MENSAJE_BASE)}`;
+function linkWhatsApp(idioma: Idioma) {
+  const mensaje =
+    idioma === "en"
+      ? "Hello, I'd like to book a vehicle. Please send me information about availability and prices."
+      : "Hola, quiero agendar un vehículo. Me gustaría recibir información sobre disponibilidad y precios.";
+  return `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensaje)}`;
 }
 
 type Orden =
@@ -107,6 +113,137 @@ const OPCIONES_ORDEN: { id: Orden; label: string }[] = [
 const campoClase =
   "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#D4202C] focus:ring-2 focus:ring-[#D4202C]/20";
 
+const TEXTOS = {
+  es: {
+    languageLabel: "Idioma",
+    nav: ["Inicio", "Vehículos", "Servicios"],
+    reserveNow: "Reservar ahora",
+    heroBadge: "Vehículos disponibles para reservar",
+    heroTitle: <>Muévete con<br />libertad y confianza.</>,
+    heroDescription:
+      "Alquila el vehículo que necesitas para tus viajes, negocios y momentos especiales. Sencillo, seguro y sin complicaciones.",
+    viewFleet: "Ver nuestra flota",
+    whyChooseUs: "¿Por qué elegirnos?",
+    features: [
+      ["Alquiler seguro", "Opciones de seguro"],
+      ["Fechas flexibles", "Opciones de extensión"],
+      ["Atención personalizada", "Estamos para ayudarte"],
+    ],
+    services: [
+      ["Seguridad y confianza", "Vehículos preparados para ofrecerte una experiencia de alquiler segura."],
+      ["Alquiler flexible", "Elige tus fechas y consulta la posibilidad de extender tu alquiler."],
+      ["Atención personalizada", "Te acompañamos durante todo el proceso de alquiler."],
+    ],
+    fleet: "Nuestra flota",
+    catalogTitle: "Encuentra tu próximo vehículo",
+    catalogDescription: "Explora nuestra selección y encuentra la opción ideal para tu próximo viaje.",
+    vehiclesAvailable: "vehículos disponibles",
+    search: "Buscar por marca, modelo, color o año...",
+    onlyAvailable: "Solo disponibles",
+    filters: "Filtros",
+    sort: "Ordenar por",
+    sortOptions: ["Más recientes", "Precio: menor a mayor", "Precio: mayor a menor", "Año: más nuevo primero", "Marca: A-Z"],
+    brand: "Marca",
+    allBrands: "Todas las marcas",
+    insurance: "Seguro",
+    all: "Todos",
+    minPrice: "Precio mínimo (USD$)",
+    maxPrice: "Precio máximo (USD$)",
+    noLimit: "Sin límite",
+    showing: "Mostrando",
+    of: "de",
+    vehicles: "vehículos",
+    clearFilters: "Limpiar filtros",
+    catalogLoadFailed: "No se pudo cargar el catálogo",
+    loadError: "No pudimos cargar los vehículos. Verifica tu conexión e inténtalo de nuevo.",
+    retry: "Intentar de nuevo",
+    noVehicles: "No hay vehículos registrados",
+    noVehiclesDescription: "Actualmente no hay vehículos disponibles en el catálogo.",
+    noResults: "No encontramos vehículos",
+    noResultsDescription: "Prueba con otra búsqueda o cambia los filtros.",
+    previousPage: "Página anterior",
+    nextPage: "Página siguiente",
+    pagination: "Paginación de vehículos",
+    finalTitle: <>Tu viaje.<br />Nuestro compromiso.</>,
+    finalDescription: "Queremos que alquilar un vehículo sea una experiencia sencilla desde el primer momento hasta la devolución.",
+    quality: "Calidad",
+    selectedVehicles: "Vehículos seleccionados",
+    address: "C/ FELICIDAD, Santo Domingo Este, Lucerna",
+    viewMaps: "Ver en Google Maps",
+    phones: "Teléfonos",
+    office: "Oficina:",
+    mobile: "Celular:",
+    footerTagline: "Tu próximo viaje comienza aquí.",
+    rights: "Todos los derechos reservados.",
+    contactWhatsApp: "Contactar por WhatsApp",
+    whatsappTitle: "Escríbenos por WhatsApp",
+  },
+  en: {
+    languageLabel: "Language",
+    nav: ["Home", "Vehicles", "Services"],
+    reserveNow: "Book now",
+    heroBadge: "Vehicles available for booking",
+    heroTitle: <>Move with<br />freedom and confidence.</>,
+    heroDescription:
+      "Rent the vehicle you need for your travels, business, and special moments. Simple, safe, and hassle-free.",
+    viewFleet: "Browse our fleet",
+    whyChooseUs: "Why choose us?",
+    features: [
+      ["Safe rentals", "Insurance options"],
+      ["Flexible dates", "Extension options"],
+      ["Personalized service", "We're here to help"],
+    ],
+    services: [
+      ["Safety and peace of mind", "Vehicles prepared to offer you a safe rental experience."],
+      ["Flexible rentals", "Choose your dates and ask about extending your rental."],
+      ["Personalized service", "We're with you throughout the rental process."],
+    ],
+    fleet: "Our fleet",
+    catalogTitle: "Find your next vehicle",
+    catalogDescription: "Explore our selection and find the perfect option for your next trip.",
+    vehiclesAvailable: "vehicles available",
+    search: "Search by make, model, color, or year...",
+    onlyAvailable: "Available only",
+    filters: "Filters",
+    sort: "Sort by",
+    sortOptions: ["Newest", "Price: low to high", "Price: high to low", "Year: newest first", "Make: A-Z"],
+    brand: "Make",
+    allBrands: "All makes",
+    insurance: "Insurance",
+    all: "All",
+    minPrice: "Minimum price (USD$)",
+    maxPrice: "Maximum price (USD$)",
+    noLimit: "No limit",
+    showing: "Showing",
+    of: "of",
+    vehicles: "vehicles",
+    clearFilters: "Clear filters",
+    catalogLoadFailed: "Couldn't load the catalog",
+    loadError: "We couldn't load the vehicles. Check your connection and try again.",
+    retry: "Try again",
+    noVehicles: "No vehicles listed",
+    noVehiclesDescription: "There are currently no vehicles available in the catalog.",
+    noResults: "No vehicles found",
+    noResultsDescription: "Try another search or adjust your filters.",
+    previousPage: "Previous page",
+    nextPage: "Next page",
+    pagination: "Vehicle pagination",
+    finalTitle: <>Your journey.<br />Our commitment.</>,
+    finalDescription: "We want renting a vehicle to be a simple experience from the moment you start until you return it.",
+    quality: "Quality",
+    selectedVehicles: "Selected vehicles",
+    address: "C/ FELICIDAD, Santo Domingo Este, Lucerna",
+    viewMaps: "View on Google Maps",
+    phones: "Phone numbers",
+    office: "Office:",
+    mobile: "Mobile:",
+    footerTagline: "Your next trip starts here.",
+    rights: "All rights reserved.",
+    contactWhatsApp: "Contact us on WhatsApp",
+    whatsappTitle: "Message us on WhatsApp",
+  },
+} as const;
+
 function normalizarVehiculo(datos: unknown): Vehiculo {
   if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
     throw new Error("La respuesta contiene un vehículo con formato inválido.");
@@ -159,6 +296,7 @@ async function obtenerVehiculos(signal?: AbortSignal): Promise<Vehiculo[]> {
 }
 
 export default function Home() {
+  const idioma = useIdioma();
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
@@ -174,6 +312,11 @@ export default function Home() {
   const [precioMin, setPrecioMin] = useState("");
   const [precioMax, setPrecioMax] = useState("");
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const texto = TEXTOS[idioma];
+
+  useEffect(() => {
+    document.documentElement.lang = idioma;
+  }, [idioma]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -321,9 +464,9 @@ export default function Home() {
 
           <div className="hidden items-center gap-9 text-sm font-semibold text-white md:flex">
             {[
-              ["#inicio", "Inicio"],
-              ["#vehiculos", "Vehículos"],
-              ["#servicios", "Servicios"],
+              ["#inicio", texto.nav[0]],
+              ["#vehiculos", texto.nav[1]],
+              ["#servicios", texto.nav[2]],
             ].map(([href, label]) => (
               <a
                 key={href}
@@ -335,14 +478,33 @@ export default function Home() {
             ))}
           </div>
 
-          <a
-            href={linkWhatsApp()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg bg-[#D4202C] px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-900/30 transition hover:bg-[#b81b26]"
-          >
-            Reservar ahora
-          </a>
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="language-selector"
+              className="text-xs font-semibold text-white sm:text-sm"
+            >
+              {texto.languageLabel}
+            </label>
+            <select
+              id="language-selector"
+              value={idioma}
+              onChange={(event) =>
+                guardarIdioma(event.target.value === "en" ? "en" : "es")
+              }
+              className="rounded-lg border border-white/40 bg-black/60 px-2 py-2.5 text-xs font-bold text-white outline-none transition hover:border-[#D4202C] focus:border-[#D4202C] sm:px-3 sm:text-sm"
+            >
+              <option value="es" className="text-gray-900">Español</option>
+              <option value="en" className="text-gray-900">English</option>
+            </select>
+            <a
+              href={linkWhatsApp(idioma)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-[#D4202C] px-3 py-2.5 text-xs font-bold text-white shadow-lg shadow-red-900/30 transition hover:bg-[#b81b26] sm:px-5 sm:text-sm"
+            >
+              {texto.reserveNow}
+            </a>
+          </div>
         </div>
       </nav>
 
@@ -370,20 +532,17 @@ export default function Home() {
           <div>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#D4202C]/60 bg-[#D4202C]/15 px-4 py-2 text-sm font-medium text-white backdrop-blur">
               <CheckCircle2 size={16} className="text-[#D4202C]" />
-              Vehículos disponibles para reservar
+              {texto.heroBadge}
             </div>
 
             <h2 className="text-5xl font-extrabold leading-[1.03] tracking-tight text-white md:text-7xl">
-              Muévete con
-              <br />
-              libertad y confianza.
+              {texto.heroTitle}
             </h2>
 
             <div className="mt-6 h-1.5 w-24 rounded-full bg-[#D4202C]" />
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-gray-300">
-              Alquila el vehículo que necesitas para tus viajes, negocios y
-              momentos especiales. Sencillo, seguro y sin complicaciones.
+              {texto.heroDescription}
             </p>
 
             <div className="mt-9 flex flex-wrap gap-4">
@@ -391,7 +550,7 @@ export default function Home() {
                 href="#vehiculos"
                 className="group flex items-center gap-2 rounded-lg bg-[#D4202C] px-7 py-4 font-bold text-white shadow-xl shadow-red-900/40 transition hover:bg-[#b81b26]"
               >
-                Ver nuestra flota
+                {texto.viewFleet}
                 <ArrowRight
                   size={19}
                   className="transition group-hover:translate-x-1"
@@ -402,17 +561,17 @@ export default function Home() {
                 href="#servicios"
                 className="rounded-lg border border-white/40 px-7 py-4 font-semibold text-white transition hover:bg-white hover:text-black"
               >
-                ¿Por qué elegirnos?
+                {texto.whyChooseUs}
               </a>
             </div>
 
             <div className="mt-12 flex flex-wrap gap-8 border-t border-white/15 pt-7">
-              {CARACTERISTICAS.map(({ icono: Icon, titulo, descripcion }) => (
-                <div key={titulo} className="flex items-center gap-3">
+              {CARACTERISTICAS.map(({ icono: Icon }, index) => (
+                <div key={index} className="flex items-center gap-3">
                   <Icon size={22} className="text-[#D4202C]" />
                   <div>
-                    <p className="text-sm font-semibold text-white">{titulo}</p>
-                    <p className="text-xs text-gray-400">{descripcion}</p>
+                    <p className="text-sm font-semibold text-white">{texto.features[index][0]}</p>
+                    <p className="text-xs text-gray-400">{texto.features[index][1]}</p>
                   </div>
                 </div>
               ))}
@@ -438,15 +597,15 @@ export default function Home() {
       {/* SERVICIOS */}
       <section id="servicios" className="border-b bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-16 md:grid-cols-3">
-          {SERVICIOS.map(({ icono: Icon, titulo, descripcion }) => (
-            <div key={titulo} className="flex gap-4">
+          {SERVICIOS.map(({ icono: Icon }, index) => (
+            <div key={index} className="flex gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-black text-white">
                 <Icon size={23} />
               </div>
               <div>
-                <h3 className="font-bold">{titulo}</h3>
+                <h3 className="font-bold">{texto.services[index][0]}</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-500">
-                  {descripcion}
+                  {texto.services[index][1]}
                 </p>
               </div>
             </div>
@@ -461,19 +620,18 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-6 py-20">
           <div className="mb-12 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
-              <p className="text-sm font-bold text-[#D4202C]">Nuestra flota</p>
+              <p className="text-sm font-bold text-[#D4202C]">{texto.fleet}</p>
               <h2 className="mt-3 text-4xl font-extrabold tracking-tight md:text-5xl">
-                Encuentra tu próximo vehículo
+                {texto.catalogTitle}
               </h2>
               <p className="mt-4 max-w-2xl text-gray-500">
-                Explora nuestra selección y encuentra la opción ideal para tu
-                próximo viaje.
+                {texto.catalogDescription}
               </p>
             </div>
 
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-600">
               <CheckCircle2 size={18} className="text-[#D4202C]" />
-              {vehiculos.filter((v) => v.disponible).length} vehículos disponibles
+              {vehiculos.filter((v) => v.disponible).length} {texto.vehiclesAvailable}
             </div>
           </div>
 
@@ -493,7 +651,7 @@ export default function Home() {
                       setPaginaActual(1);
                       setBusqueda(e.target.value);
                     }}
-                    placeholder="Buscar por marca, modelo, color o año..."
+                    placeholder={texto.search}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-[#D4202C] focus:bg-white focus:ring-2 focus:ring-[#D4202C]/20"
                   />
                 </div>
@@ -517,7 +675,7 @@ export default function Home() {
                           : "h-2 w-2 rounded-full bg-green-500"
                       }
                     />
-                    Solo disponibles
+                    {texto.onlyAvailable}
                   </button>
 
                   <button
@@ -529,7 +687,7 @@ export default function Home() {
                     }
                   >
                     <SlidersHorizontal size={17} />
-                    Filtros
+                    {texto.filters}
                   </button>
                 </div>
               </div>
@@ -538,7 +696,7 @@ export default function Home() {
                 <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-5">
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold text-gray-500">
-                      Ordenar por
+                      {texto.sort}
                     </span>
                     <select
                       value={orden}
@@ -548,9 +706,9 @@ export default function Home() {
                       }}
                       className={campoClase}
                     >
-                      {OPCIONES_ORDEN.map((o) => (
+                      {OPCIONES_ORDEN.map((o, index) => (
                         <option key={o.id} value={o.id}>
-                          {o.label}
+                          {texto.sortOptions[index]}
                         </option>
                       ))}
                     </select>
@@ -558,7 +716,7 @@ export default function Home() {
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold text-gray-500">
-                      Marca
+                      {texto.brand}
                     </span>
                     <select
                       value={marcaFiltro}
@@ -568,7 +726,7 @@ export default function Home() {
                       }}
                       className={campoClase}
                     >
-                      <option value="todas">Todas las marcas</option>
+                      <option value="todas">{texto.allBrands}</option>
                       {marcas.map((m) => (
                         <option key={m} value={m}>
                           {m}
@@ -579,7 +737,7 @@ export default function Home() {
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold text-gray-500">
-                      Seguro
+                      {texto.insurance}
                     </span>
                     <select
                       value={seguroFiltro}
@@ -589,7 +747,7 @@ export default function Home() {
                       }}
                       className={campoClase}
                     >
-                      <option value="todos">Todos</option>
+                      <option value="todos">{texto.all}</option>
                       {seguros.map((sg) => (
                         <option key={sg} value={sg}>
                           {sg}
@@ -600,7 +758,7 @@ export default function Home() {
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold text-gray-500">
-                      Precio mínimo (USD$)
+                      {texto.minPrice}
                     </span>
                     <input
                       type="number"
@@ -617,7 +775,7 @@ export default function Home() {
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold text-gray-500">
-                      Precio máximo (USD$)
+                      {texto.maxPrice}
                     </span>
                     <input
                       type="number"
@@ -627,7 +785,7 @@ export default function Home() {
                         setPaginaActual(1);
                         setPrecioMax(e.target.value);
                       }}
-                      placeholder="Sin límite"
+                      placeholder={texto.noLimit}
                       className={campoClase}
                     />
                   </label>
@@ -636,9 +794,9 @@ export default function Home() {
 
               <div className="mt-4 flex items-center justify-between gap-3 text-sm text-gray-500">
                 <p>
-                  Mostrando{" "}
+                  {texto.showing}{" "}
                   <strong className="text-gray-900">{filtrados.length}</strong>{" "}
-                  de {vehiculos.length} vehículos
+                  {texto.of} {vehiculos.length} {texto.vehicles}
                 </p>
 
                 {hayFiltrosActivos && (
@@ -647,7 +805,7 @@ export default function Home() {
                     className="flex items-center gap-1 font-bold text-[#D4202C] hover:underline"
                   >
                     <X size={15} />
-                    Limpiar filtros
+                    {texto.clearFilters}
                   </button>
                 )}
               </div>
@@ -669,9 +827,11 @@ export default function Home() {
               className="rounded-2xl border border-red-200 bg-white p-10 text-center"
             >
               <h3 className="text-xl font-bold text-gray-900">
-                No se pudo cargar el catálogo
+                {texto.catalogLoadFailed}
               </h3>
-              <p className="mt-2 text-gray-600">{errorCarga}</p>
+              <p className="mt-2 text-gray-600">
+                {idioma === "en" ? texto.loadError : errorCarga}
+              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -689,33 +849,33 @@ export default function Home() {
                 }}
                 className="mt-6 rounded-lg bg-[#D4202C] px-6 py-3 text-sm font-bold text-white transition hover:bg-black"
               >
-                Intentar de nuevo
+                {texto.retry}
               </button>
             </div>
           ) : vehiculos.length === 0 ? (
             <div className="rounded-2xl border bg-white p-16 text-center">
               <Car size={45} className="mx-auto text-gray-300" />
               <h3 className="mt-5 text-xl font-bold">
-                No hay vehículos registrados
+                {texto.noVehicles}
               </h3>
               <p className="mt-2 text-gray-500">
-                Actualmente no hay vehículos disponibles en el catálogo.
+                {texto.noVehiclesDescription}
               </p>
             </div>
           ) : filtrados.length === 0 ? (
             <div className="rounded-2xl border bg-white p-16 text-center">
               <Search size={45} className="mx-auto text-gray-300" />
               <h3 className="mt-5 text-xl font-bold">
-                No encontramos vehículos
+                {texto.noResults}
               </h3>
               <p className="mt-2 text-gray-500">
-                Prueba con otra búsqueda o cambia los filtros.
+                {texto.noResultsDescription}
               </p>
               <button
                 onClick={limpiarFiltros}
                 className="mt-6 rounded-lg bg-[#D4202C] px-6 py-3 text-sm font-bold text-white transition hover:bg-black"
               >
-                Limpiar filtros
+                {texto.clearFilters}
               </button>
             </div>
           ) : (
@@ -724,6 +884,7 @@ export default function Home() {
                 <VehicleCard
                   key={vehiculo.id}
                   vehiculo={vehiculo}
+                  idioma={idioma}
                 />
               ))}
             </div>
@@ -732,21 +893,21 @@ export default function Home() {
           {!cargando && filtrados.length > 0 && (
             <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
               <div className="text-sm text-gray-600">
-                Mostrando {indiceInicial + 1}-
+                {texto.showing} {indiceInicial + 1}-
                 {Math.min(indiceInicial + vehiculosPorPagina, filtrados.length)}{" "}
-                de {filtrados.length} vehículos
+                {texto.of} {filtrados.length} {texto.vehicles}
               </div>
 
               {totalPaginas > 1 && (
                 <nav
-                  aria-label="Paginación de vehículos"
+                  aria-label={texto.pagination}
                   className="flex items-center gap-1"
                 >
                   <button
                     type="button"
                     onClick={() => setPaginaActual(paginaSegura - 1)}
                     disabled={paginaSegura === 1}
-                    aria-label="Página anterior"
+                    aria-label={texto.previousPage}
                     className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:border-[#D4202C] hover:text-[#D4202C] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronLeft size={18} />
@@ -758,7 +919,7 @@ export default function Home() {
                       type="button"
                       onClick={() => setPaginaActual(pagina)}
                       aria-current={pagina === paginaSegura ? "page" : undefined}
-                      aria-label={`Página ${pagina}`}
+                      aria-label={`${idioma === "es" ? "Página" : "Page"} ${pagina}`}
                       className={
                         pagina === paginaSegura
                           ? "h-10 min-w-10 rounded-lg bg-[#D4202C] px-3 text-sm font-bold text-white"
@@ -773,7 +934,7 @@ export default function Home() {
                     type="button"
                     onClick={() => setPaginaActual(paginaSegura + 1)}
                     disabled={paginaSegura === totalPaginas}
-                    aria-label="Página siguiente"
+                    aria-label={texto.nextPage}
                     className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:border-[#D4202C] hover:text-[#D4202C] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronRight size={18} />
@@ -793,14 +954,11 @@ export default function Home() {
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div className="md:pl-20">
               <h2 className="text-4xl font-extrabold tracking-tight text-white md:text-5xl">
-                Tu viaje.
-                <br />
-                Nuestro compromiso.
+                {texto.finalTitle}
               </h2>
 
               <p className="mt-5 max-w-xl leading-7 text-gray-400">
-                Queremos que alquilar un vehículo sea una experiencia sencilla
-                desde el primer momento hasta la devolución.
+                {texto.finalDescription}
               </p>
             </div>
 
@@ -808,17 +966,17 @@ export default function Home() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <Star size={24} className="text-[#D4202C]" />
                 <p className="mt-4 text-2xl font-extrabold text-white">
-                  Calidad
+                  {texto.quality}
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
-                  Vehículos seleccionados
+                  {texto.selectedVehicles}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <MapPin size={24} className="text-[#D4202C]" />
                 <p className="mt-4 text-base font-extrabold leading-6 text-white">
-                  C/ FELICIDAD, Santo Domingo Este, Lucerna
+                  {texto.address}
                 </p>
                 <a
                   href="https://maps.app.goo.gl/BJDbfpozB3ga7jBAA"
@@ -826,18 +984,18 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="mt-2 inline-block text-sm font-semibold text-gray-400 underline decoration-[#D4202C] underline-offset-4 transition hover:text-white"
                 >
-                  Ver en Google Maps
+                  {texto.viewMaps}
                 </a>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <PhoneCall size={24} className="text-[#D4202C]" />
                 <p className="mt-4 text-xl font-extrabold text-white">
-                  Teléfonos
+                  {texto.phones}
                 </p>
                 <div className="mt-2 space-y-1 text-sm text-gray-400">
                   <p>
-                    Oficina:{" "}
+                    {texto.office}{" "}
                     <a
                       href="tel:+18094140217"
                       className="font-semibold text-white transition hover:text-[#D4202C]"
@@ -846,7 +1004,7 @@ export default function Home() {
                     </a>
                   </p>
                   <p>
-                    Celular:{" "}
+                    {texto.mobile}{" "}
                     <a
                       href="tel:+18299212615"
                       className="font-semibold text-white transition hover:text-[#D4202C]"
@@ -878,24 +1036,24 @@ export default function Home() {
                 El Bien Amado Rent A Car
               </p>
               <p className="mt-1 text-sm text-gray-500">
-                Tu próximo viaje comienza aquí.
+                {texto.footerTagline}
               </p>
             </div>
           </div>
 
           <p className="text-sm text-gray-600">
-            © {new Date().getFullYear()} El Bien Amado. Todos los derechos reservados.
+            © {new Date().getFullYear()} El Bien Amado. {texto.rights}
           </p>
         </div>
       </footer>
 
       {/* BOTÓN FLOTANTE DE WHATSAPP */}
       <a
-        href={linkWhatsApp()}
+        href={linkWhatsApp(idioma)}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="Contactar por WhatsApp"
-        title="Escríbenos por WhatsApp"
+        aria-label={texto.contactWhatsApp}
+        title={texto.whatsappTitle}
         className="fixed bottom-6 right-6 z-[100] flex h-16 w-16 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-black/25 transition duration-300 hover:scale-110 hover:bg-[#1ebe5d] focus:outline-none focus:ring-4 focus:ring-green-300"
       >
         <MessageCircle size={32} strokeWidth={2.5} />

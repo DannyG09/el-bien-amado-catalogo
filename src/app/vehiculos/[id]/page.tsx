@@ -1,10 +1,8 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
 import {
   ArrowLeft,
   Car,
@@ -19,6 +17,11 @@ import {
   X,
 } from "lucide-react";
 import type { Vehiculo as VehiculoCompleto } from "../../types/vehiculo";
+import {
+  traducirTipoSeguro,
+  useIdioma,
+  type Idioma,
+} from "../../lib/idioma";
 
 type Vehiculo = Omit<VehiculoCompleto, "placa">;
 
@@ -32,6 +35,136 @@ type Foto = {
 const WHATSAPP_NUMERO = "18299212615";
 const CLASE_CAMPO =
   "w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-[#D4202C] focus:ring-2 focus:ring-[#D4202C]/20";
+
+type ErrorKey =
+  | "vehiclesLoadFailed"
+  | "invalidVehicleList"
+  | "vehicleNotFound"
+  | "unexpected";
+
+const TEXTOS = {
+  es: {
+    loading: "Cargando información del vehículo...",
+    vehicleNotFound: "Vehículo no encontrado",
+    errors: {
+      vehiclesLoadFailed: "No se pudieron cargar los vehículos.",
+      invalidVehicleList: "La respuesta de vehículos tiene un formato inválido.",
+      vehicleNotFound: "No encontramos este vehículo.",
+      unexpected: "Ocurrió un error al cargar el vehículo.",
+    },
+    noRequestedInfo: "No pudimos encontrar la información solicitada.",
+    backToCatalog: "Volver al catálogo",
+    back: "Volver",
+    fleet: "Nuestra flota",
+    year: "Año",
+    enlargePhoto: "Ampliar fotografía",
+    noPhotos: "No hay fotografías disponibles",
+    previousPhoto: "Fotografía anterior",
+    nextPhoto: "Fotografía siguiente",
+    viewPhoto: (index: number) => `Ver fotografía ${index}`,
+    thumbnail: (index: number) => `Miniatura ${index}`,
+    photo: "fotografía",
+    photos: "fotografías",
+    available: "Disponible",
+    unavailable: "No disponible",
+    rentalPrice: "Precio de alquiler",
+    perDay: "por día",
+    features: "Características",
+    vehicle: "Vehículo",
+    color: "Color",
+    notSpecified: "No especificado",
+    insurance: "Tipo de seguro",
+    rental: "Alquiler",
+    checkDates: "Consulta las fechas disponibles",
+    additionalFeatures: "Características adicionales",
+    enterDates: "Ingresar fechas de recogida y devolución",
+    dateInstructions: "Indica las fechas y envía la consulta por WhatsApp.",
+    pickupDate: "Fecha de recogida",
+    returnDate: "Fecha de devolución",
+    invalidDates: "La fecha de devolución debe ser posterior a la recogida.",
+    askOnWhatsApp: "Consultar por WhatsApp",
+    unavailableForBooking:
+      "Este vehículo no está disponible para reservar actualmente.",
+    priceAvailabilityNotice:
+      "El precio y la disponibilidad deben confirmarse al momento de la reserva.",
+    backToAllVehicles: "Volver a todos los vehículos",
+    enlargedVehiclePhoto: "Fotografía ampliada del vehículo",
+    closeEnlargedPhoto: "Cerrar fotografía ampliada",
+    allRightsReserved: "Todos los derechos reservados.",
+    whatsappGreeting: (vehicle: string) =>
+      `Hola, quiero solicitar disponibilidad para el ${vehicle}.`,
+    whatsappPickup: (date: string) => `Fecha de recogida: ${date}.`,
+    whatsappReturn: (date: string) => `Fecha de devolución: ${date}.`,
+    whatsappPrice: (price: string) => `Precio publicado: USD$ ${price} por día.`,
+    whatsappDisclaimer:
+      "Por favor, confirmen disponibilidad y requisitos. Entiendo que esta solicitud no confirma la reserva.",
+  },
+  en: {
+    loading: "Loading vehicle information...",
+    vehicleNotFound: "Vehicle not found",
+    errors: {
+      vehiclesLoadFailed: "Could not load the vehicles.",
+      invalidVehicleList: "The vehicle list response has an invalid format.",
+      vehicleNotFound: "We couldn't find this vehicle.",
+      unexpected: "An error occurred while loading the vehicle.",
+    },
+    noRequestedInfo: "We couldn't find the requested information.",
+    backToCatalog: "Back to catalog",
+    back: "Back",
+    fleet: "Our fleet",
+    year: "Year",
+    enlargePhoto: "Enlarge photo",
+    noPhotos: "No photos available",
+    previousPhoto: "Previous photo",
+    nextPhoto: "Next photo",
+    viewPhoto: (index: number) => `View photo ${index}`,
+    thumbnail: (index: number) => `Thumbnail ${index}`,
+    photo: "photo",
+    photos: "photos",
+    available: "Available",
+    unavailable: "Unavailable",
+    rentalPrice: "Rental price",
+    perDay: "per day",
+    features: "Features",
+    vehicle: "Vehicle",
+    color: "Color",
+    notSpecified: "Not specified",
+    insurance: "Insurance type",
+    rental: "Rental",
+    checkDates: "Check available dates",
+    additionalFeatures: "Additional features",
+    enterDates: "Enter pickup and return dates",
+    dateInstructions: "Choose your dates and send your inquiry via WhatsApp.",
+    pickupDate: "Pickup date",
+    returnDate: "Return date",
+    invalidDates: "The return date must be after the pickup date.",
+    askOnWhatsApp: "Inquire on WhatsApp",
+    unavailableForBooking:
+      "This vehicle is currently unavailable for booking.",
+    priceAvailabilityNotice:
+      "Price and availability must be confirmed when booking.",
+    backToAllVehicles: "Back to all vehicles",
+    enlargedVehiclePhoto: "Enlarged vehicle photo",
+    closeEnlargedPhoto: "Close enlarged photo",
+    allRightsReserved: "All rights reserved.",
+    whatsappGreeting: (vehicle: string) =>
+      `Hello, I'd like to check availability for the ${vehicle}.`,
+    whatsappPickup: (date: string) => `Pickup date: ${date}.`,
+    whatsappReturn: (date: string) => `Return date: ${date}.`,
+    whatsappPrice: (price: string) => `Listed price: USD$ ${price} per day.`,
+    whatsappDisclaimer:
+      "Please confirm availability and requirements. I understand this inquiry does not confirm a reservation.",
+  },
+} as const;
+
+function esErrorKey(value: string): value is ErrorKey {
+  return (
+    value === "vehiclesLoadFailed" ||
+    value === "invalidVehicleList" ||
+    value === "vehicleNotFound" ||
+    value === "unexpected"
+  );
+}
 
 function esRegistro(datos: unknown): datos is Record<string, unknown> {
   return typeof datos === "object" && datos !== null && !Array.isArray(datos);
@@ -102,10 +235,16 @@ export default function DetalleVehiculoPage() {
   const [fotoSeleccionada, setFotoSeleccionada] = useState(0);
   const [visorAbierto, setVisorAbierto] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ErrorKey | null>(null);
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
-  const [errorFechas, setErrorFechas] = useState("");
+  const [errorFechas, setErrorFechas] = useState(false);
+  const idioma = useIdioma();
+  const texto = TEXTOS[idioma];
+
+  useEffect(() => {
+    document.documentElement.lang = idioma;
+  }, [idioma]);
 
   useEffect(() => {
     if (!id) return;
@@ -115,18 +254,18 @@ export default function DetalleVehiculoPage() {
     async function cargarDetalle() {
       try {
         setCargando(true);
-        setError("");
+        setError(null);
 
         const respuestaVehiculos = await fetch("/api/vehiculos");
 
         if (!respuestaVehiculos.ok) {
-          throw new Error("No se pudieron cargar los vehículos.");
+          throw new Error("vehiclesLoadFailed");
         }
 
         const respuestaLista: unknown = await respuestaVehiculos.json();
 
         if (!Array.isArray(respuestaLista)) {
-          throw new Error("La respuesta de vehículos tiene un formato inválido.");
+          throw new Error("invalidVehicleList");
         }
 
         const encontrado = respuestaLista.find(
@@ -135,7 +274,7 @@ export default function DetalleVehiculoPage() {
         );
 
         if (!encontrado) {
-          throw new Error("No encontramos este vehículo.");
+          throw new Error("vehicleNotFound");
         }
 
         const normalizado = normalizarVehiculo(encontrado);
@@ -183,9 +322,9 @@ export default function DetalleVehiculoPage() {
       } catch (e) {
         if (!cancelado) {
           setError(
-            e instanceof Error
+            e instanceof Error && esErrorKey(e.message)
               ? e.message
-              : "Ocurrió un error al cargar el vehículo."
+              : "unexpected"
           );
         }
       } finally {
@@ -246,23 +385,30 @@ export default function DetalleVehiculoPage() {
     if (!vehiculo || !vehiculo.disponible) return;
 
     if (!fechaInicio || !fechaFin || fechaFin <= fechaInicio) {
-      setErrorFechas("La fecha de devolución debe ser posterior a la recogida.");
+      setErrorFechas(true);
       return;
     }
 
     const formatoFecha = (fecha: string) =>
-      new Date(`${fecha}T12:00:00`).toLocaleDateString("es-DO", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      new Date(`${fecha}T12:00:00`).toLocaleDateString(
+        idioma === "es" ? "es-DO" : "en-US",
+        {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }
+      );
 
     const mensaje = [
-      `Hola, quiero solicitar disponibilidad para el ${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}.`,
-      `Fecha de recogida: ${formatoFecha(fechaInicio)}.`,
-      `Fecha de devolución: ${formatoFecha(fechaFin)}.`,
-      `Precio publicado: USD$ ${vehiculo.precioDia.toLocaleString("es-DO")} por día.`,
-      "Por favor, confirmen disponibilidad y requisitos. Entiendo que esta solicitud no confirma la reserva.",
+      texto.whatsappGreeting(
+        `${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}`
+      ),
+      texto.whatsappPickup(formatoFecha(fechaInicio)),
+      texto.whatsappReturn(formatoFecha(fechaFin)),
+      texto.whatsappPrice(
+        vehiculo.precioDia.toLocaleString(idioma === "es" ? "es-DO" : "en-US")
+      ),
+      texto.whatsappDisclaimer,
     ].join(" ");
 
     window.open(
@@ -282,8 +428,9 @@ export default function DetalleVehiculoPage() {
           />
 
           <p className="mt-4 font-semibold text-gray-600">
-            Cargando información del vehículo...
+            {texto.loading}
           </p>
+
         </div>
       </main>
     );
@@ -296,11 +443,11 @@ export default function DetalleVehiculoPage() {
           <Car size={45} className="mx-auto text-gray-300" />
 
           <h1 className="mt-4 text-2xl font-extrabold">
-            Vehículo no encontrado
+            {texto.vehicleNotFound}
           </h1>
 
           <p className="mt-3 text-gray-500">
-            {error || "No pudimos encontrar la información solicitada."}
+            {error ? texto.errors[error] : texto.noRequestedInfo}
           </p>
 
           <a
@@ -308,7 +455,7 @@ export default function DetalleVehiculoPage() {
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#D4202C] px-5 py-3 font-bold text-white transition hover:bg-black"
           >
             <ArrowLeft size={18} />
-            Volver al catálogo
+            {texto.backToCatalog}
           </a>
         </div>
       </main>
@@ -320,6 +467,7 @@ export default function DetalleVehiculoPage() {
   const caracteristicas = obtenerCaracteristicas(
     vehiculo.descripcion
   );
+  const tipoSeguro = traducirTipoSeguro(vehiculo.tipoSeguro, idioma);
 
   return (
     <main className="min-h-screen bg-gray-50 text-gray-900">
@@ -351,11 +499,12 @@ export default function DetalleVehiculoPage() {
             <ArrowLeft size={17} />
 
             <span className="hidden sm:inline">
-              Volver al catálogo
+              {texto.backToCatalog}
             </span>
 
-            <span className="sm:hidden">Volver</span>
+            <span className="sm:hidden">{texto.back}</span>
           </a>
+
         </div>
       </header>
 
@@ -363,7 +512,7 @@ export default function DetalleVehiculoPage() {
       <section className="mx-auto max-w-7xl px-5 py-8 sm:px-6 sm:py-12">
         <div className="mb-7">
           <p className="text-sm font-bold uppercase tracking-wider text-[#D4202C]">
-            Nuestra flota
+            {texto.fleet}
           </p>
 
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
@@ -371,7 +520,7 @@ export default function DetalleVehiculoPage() {
           </h1>
 
           <p className="mt-2 text-gray-500">
-            Año {vehiculo.anio} · {vehiculo.color}
+            {texto.year} {vehiculo.anio} · {vehiculo.color}
           </p>
         </div>
 
@@ -383,12 +532,12 @@ export default function DetalleVehiculoPage() {
                 <button
                   type="button"
                   onClick={() => setVisorAbierto(true)}
-                  aria-label="Ampliar fotografía"
+                  aria-label={texto.enlargePhoto}
                   className="h-full w-full cursor-zoom-in"
                 >
                   <img
                     src={fotoActual.url}
-                    alt={`${vehiculo.marca} ${vehiculo.modelo} - fotografía ${fotoSeleccionada + 1}`}
+                    alt={`${vehiculo.marca} ${vehiculo.modelo} - ${texto.photo} ${fotoSeleccionada + 1}`}
                     className="h-full w-full object-contain"
                   />
                 </button>
@@ -401,7 +550,7 @@ export default function DetalleVehiculoPage() {
                   />
 
                   <p className="mt-3">
-                    No hay fotografías disponibles
+                    {texto.noPhotos}
                   </p>
                 </div>
               )}
@@ -411,7 +560,7 @@ export default function DetalleVehiculoPage() {
                   <button
                     type="button"
                     onClick={() => cambiarFoto(-1)}
-                    aria-label="Fotografía anterior"
+                    aria-label={texto.previousPhoto}
                     className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-[#D4202C]"
                   >
                     <ChevronLeft size={24} />
@@ -420,7 +569,7 @@ export default function DetalleVehiculoPage() {
                   <button
                     type="button"
                     onClick={() => cambiarFoto(1)}
-                    aria-label="Fotografía siguiente"
+                    aria-label={texto.nextPhoto}
                     className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-[#D4202C]"
                   >
                     <ChevronRight size={24} />
@@ -441,7 +590,7 @@ export default function DetalleVehiculoPage() {
                     type="button"
                     key={`${foto.id}-${foto.url}`}
                     onClick={() => setFotoSeleccionada(indice)}
-                    aria-label={`Ver fotografía ${indice + 1}`}
+                    aria-label={texto.viewPhoto(indice + 1)}
                     aria-pressed={fotoSeleccionada === indice}
                     className={`h-20 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-24 sm:w-28 ${
                       fotoSeleccionada === indice
@@ -451,7 +600,7 @@ export default function DetalleVehiculoPage() {
                   >
                     <img
                       src={foto.url}
-                      alt={`Miniatura ${indice + 1}`}
+                      alt={texto.thumbnail(indice + 1)}
                       className="h-full w-full object-cover"
                     />
                   </button>
@@ -463,9 +612,7 @@ export default function DetalleVehiculoPage() {
               <Images size={17} />
 
               {fotos.length}{" "}
-              {fotos.length === 1
-                ? "fotografía"
-                : "fotografías"}
+              {fotos.length === 1 ? texto.photo : texto.photos}
             </div>
           </div>
 
@@ -482,8 +629,8 @@ export default function DetalleVehiculoPage() {
                 <CheckCircle2 size={15} />
 
                 {vehiculo.disponible
-                  ? "Disponible"
-                  : "No disponible"}
+                  ? texto.available
+                  : texto.unavailable}
               </span>
 
               <span className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-700">
@@ -492,23 +639,23 @@ export default function DetalleVehiculoPage() {
             </div>
 
             <p className="mt-7 text-sm font-semibold text-gray-500">
-              Precio de alquiler
+              {texto.rentalPrice}
             </p>
 
             <div className="mt-1 flex flex-wrap items-baseline gap-2">
               <span className="text-4xl font-extrabold tracking-tight text-[#D4202C]">
-                USD$ {vehiculo.precioDia.toLocaleString("es-DO")}
+                USD$ {vehiculo.precioDia.toLocaleString(idioma === "es" ? "es-DO" : "en-US")}
               </span>
 
               <span className="text-sm text-gray-500">
-                por día
+                {texto.perDay}
               </span>
             </div>
 
             <div className="my-7 h-px bg-gray-200" />
 
             <h2 className="text-lg font-extrabold">
-              Características
+              {texto.features}
             </h2>
 
             <div className="mt-4 space-y-4">
@@ -520,7 +667,7 @@ export default function DetalleVehiculoPage() {
 
                 <div>
                   <p className="text-xs text-gray-400">
-                    Vehículo
+                    {texto.vehicle}
                   </p>
 
                   <p className="font-semibold">
@@ -537,11 +684,11 @@ export default function DetalleVehiculoPage() {
 
                 <div>
                   <p className="text-xs text-gray-400">
-                    Color
+                    {texto.color}
                   </p>
 
                   <p className="font-semibold">
-                    {vehiculo.color || "No especificado"}
+                    {vehiculo.color || texto.notSpecified}
                   </p>
                 </div>
               </div>
@@ -554,11 +701,11 @@ export default function DetalleVehiculoPage() {
 
                 <div>
                   <p className="text-xs text-gray-400">
-                    Tipo de seguro
+                    {texto.insurance}
                   </p>
 
                   <p className="font-semibold">
-                    {vehiculo.tipoSeguro}
+                    {tipoSeguro}
                   </p>
                 </div>
               </div>
@@ -571,11 +718,11 @@ export default function DetalleVehiculoPage() {
 
                 <div>
                   <p className="text-xs text-gray-400">
-                    Alquiler
+                    {texto.rental}
                   </p>
 
                   <p className="font-semibold">
-                    Consulta las fechas disponibles
+                    {texto.checkDates}
                   </p>
                 </div>
               </div>
@@ -587,7 +734,7 @@ export default function DetalleVehiculoPage() {
                 <div className="my-7 h-px bg-gray-200" />
 
                 <h2 className="text-lg font-extrabold">
-                  Características adicionales
+                  {texto.additionalFeatures}
                 </h2>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -618,16 +765,16 @@ export default function DetalleVehiculoPage() {
                 className="mt-8 scroll-mt-6"
               >
                 <h2 className="text-lg font-extrabold">
-                   Ingresar fechas de recogida y devolución
+                  {texto.enterDates}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Indica las fechas y envía la consulta por WhatsApp.
+                  {texto.dateInstructions}
                 </p>
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-1.5 block text-sm font-semibold">
-                      Fecha de recogida
+                      {texto.pickupDate}
                     </span>
                     <input
                       type="date"
@@ -636,7 +783,7 @@ export default function DetalleVehiculoPage() {
                       value={fechaInicio}
                       onChange={(event) => {
                         setFechaInicio(event.target.value);
-                        setErrorFechas("");
+                        setErrorFechas(false);
                       }}
                       className={CLASE_CAMPO}
                     />
@@ -644,7 +791,7 @@ export default function DetalleVehiculoPage() {
 
                   <label className="block">
                     <span className="mb-1.5 block text-sm font-semibold">
-                      Fecha de devolución
+                      {texto.returnDate}
                     </span>
                     <input
                       type="date"
@@ -653,7 +800,7 @@ export default function DetalleVehiculoPage() {
                       value={fechaFin}
                       onChange={(event) => {
                         setFechaFin(event.target.value);
-                        setErrorFechas("");
+                        setErrorFechas(false);
                       }}
                       className={CLASE_CAMPO}
                     />
@@ -662,7 +809,7 @@ export default function DetalleVehiculoPage() {
 
                 {errorFechas && (
                   <p role="alert" className="mt-3 text-sm font-medium text-red-600">
-                    {errorFechas}
+                    {texto.invalidDates}
                   </p>
                 )}
 
@@ -671,17 +818,17 @@ export default function DetalleVehiculoPage() {
                   className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-5 py-4 font-bold text-white transition hover:bg-black"
                 >
                   <MessageCircle size={21} />
-                  Consultar por WhatsApp
+                  {texto.askOnWhatsApp}
                 </button>
               </form>
             ) : (
               <div className="mt-8 rounded-xl bg-gray-100 px-4 py-4 text-center text-sm font-semibold text-gray-500">
-                Este vehículo no está disponible para reservar actualmente.
+                {texto.unavailableForBooking}
               </div>
             )}
 
             <p className="mt-4 text-center text-xs leading-5 text-gray-400">
-              El precio y la disponibilidad deben confirmarse al momento de la reserva.
+              {texto.priceAvailabilityNotice}
             </p>
           </aside>
         </div>
@@ -693,7 +840,7 @@ export default function DetalleVehiculoPage() {
             className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-bold transition hover:border-[#D4202C] hover:text-[#D4202C]"
           >
             <ArrowLeft size={17} />
-            Volver a todos los vehículos
+            {texto.backToAllVehicles}
           </a>
         </div>
       </section>
@@ -703,7 +850,7 @@ export default function DetalleVehiculoPage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Fotografía ampliada del vehículo"
+          aria-label={texto.enlargedVehiclePhoto}
           onClick={() => setVisorAbierto(false)}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 sm:p-8"
         >
@@ -711,7 +858,7 @@ export default function DetalleVehiculoPage() {
           <button
             type="button"
             onClick={() => setVisorAbierto(false)}
-            aria-label="Cerrar fotografía ampliada"
+            aria-label={texto.closeEnlargedPhoto}
             className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-[#D4202C] sm:right-6 sm:top-6"
           >
             <X size={26} />
@@ -726,7 +873,7 @@ export default function DetalleVehiculoPage() {
                   evento.stopPropagation();
                   cambiarFoto(-1);
                 }}
-                aria-label="Fotografía anterior"
+                aria-label={texto.previousPhoto}
                 className="absolute left-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-[#D4202C] sm:left-6 sm:h-14 sm:w-14"
               >
                 <ChevronLeft size={30} />
@@ -738,7 +885,7 @@ export default function DetalleVehiculoPage() {
                   evento.stopPropagation();
                   cambiarFoto(1);
                 }}
-                aria-label="Fotografía siguiente"
+                aria-label={texto.nextPhoto}
                 className="absolute right-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-[#D4202C] sm:right-6 sm:h-14 sm:w-14"
               >
                 <ChevronRight size={30} />
@@ -749,7 +896,7 @@ export default function DetalleVehiculoPage() {
           {/* IMAGEN AMPLIADA */}
           <img
             src={fotoActual.url}
-            alt={`${vehiculo.marca} ${vehiculo.modelo} ampliado`}
+            alt={`${vehiculo.marca} ${vehiculo.modelo} ${texto.enlargedVehiclePhoto}`}
             onClick={(evento) => evento.stopPropagation()}
             className="max-h-[88vh] max-w-[90vw] select-none object-contain"
           />
@@ -763,7 +910,7 @@ export default function DetalleVehiculoPage() {
 
       {/* PIE DE PÁGINA */}
       <footer className="border-t-4 border-[#D4202C] bg-black px-5 py-7 text-center text-sm text-gray-400">
-        © {new Date().getFullYear()} El Bien Amado Rent A Car. Todos los derechos reservados.
+        © {new Date().getFullYear()} El Bien Amado Rent A Car. {texto.allRightsReserved}
       </footer>
     </main>
   );
