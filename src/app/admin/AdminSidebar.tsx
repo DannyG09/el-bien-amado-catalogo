@@ -10,6 +10,7 @@ import {
   LogOut,
   UsersRound,
   ArrowUpRight,
+  Wrench,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -37,13 +38,19 @@ const NAV_ITEMS = [
     icon: ClipboardList,
     available: false,
   },
+  {
+    label: "Mantenimiento",
+    href: "/admin/mantenimiento",
+    icon: Wrench,
+    available: true,
+  },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="z-20 w-full shrink-0 border-b border-gray-200 bg-white lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:border-b-0 lg:border-r">
+    <aside className="z-20 w-full shrink-0 border-b border-gray-800 bg-[#111214] text-white lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:border-b-0 lg:border-r">
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-3 px-5 py-5 lg:px-6 lg:py-7">
           <Image
@@ -54,17 +61,17 @@ export default function AdminSidebar() {
             className="h-12 w-12 rounded-2xl object-cover ring-2 ring-[#D4202C]/20"
           />
           <div className="min-w-0">
-            <p className="truncate text-sm font-extrabold text-gray-950">
-              El Bien <span className="text-[#D4202C]">Amado</span>
+            <p className="truncate text-sm font-extrabold text-white">
+              El Bien <span className="text-red-400">Amado</span>
             </p>
             <p className="mt-1 text-[10px] font-bold tracking-[0.22em] text-gray-400">
-              ADMINISTRACIÓN
+              PANEL DE ADMINISTRACIÓN
             </p>
           </div>
         </div>
 
-        <div className="hidden px-6 pb-3 pt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-gray-400 lg:block">
-          Menú principal
+        <div className="hidden px-6 pb-3 pt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 lg:block">
+          Espacio de trabajo
         </div>
 
         <nav
@@ -79,17 +86,17 @@ export default function AdminSidebar() {
                 : pathname.startsWith(href));
             const className = `flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
               activo
-                ? "bg-red-50 text-[#C51D28] ring-1 ring-red-100"
+                ? "bg-[#D4202C] text-white shadow-lg shadow-red-950/30"
                 : available
-                  ? "text-gray-600 hover:bg-gray-100 hover:text-gray-950"
-                  : "cursor-not-allowed text-gray-400"
+                  ? "text-gray-300 hover:bg-white/10 hover:text-white"
+                  : "cursor-not-allowed text-gray-600"
             }`;
             const contenido = (
               <>
                 <Icon
                   size={19}
                   strokeWidth={activo ? 2.5 : 2}
-                  className={activo ? "text-[#D4202C]" : ""}
+                  className={activo ? "text-white" : ""}
                 />
                 <span>{label}</span>
                 {!available && (
@@ -117,10 +124,10 @@ export default function AdminSidebar() {
           })}
         </nav>
 
-        <div className="hidden border-t border-gray-100 p-4 lg:block">
+        <div className="hidden border-t border-white/10 p-4 lg:block">
           <Link
             href="/"
-            className="mb-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-950"
+            className="mb-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-gray-300 transition hover:bg-white/10 hover:text-white"
           >
             <ArrowUpRight size={19} />
             Ver sitio público
@@ -128,7 +135,7 @@ export default function AdminSidebar() {
           <form action="/api/logout" method="POST">
             <button
               type="submit"
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-gray-500 transition hover:bg-red-50 hover:text-[#C51D28]"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-gray-400 transition hover:bg-white/10 hover:text-red-300"
             >
               <LogOut size={19} />
               Cerrar sesión
@@ -136,17 +143,17 @@ export default function AdminSidebar() {
           </form>
         </div>
 
-        <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 lg:hidden">
+        <div className="flex items-center justify-between border-t border-white/10 px-5 py-3 lg:hidden">
           <Link
             href="/"
-            className="text-xs font-semibold text-gray-500 hover:text-gray-900"
+            className="text-xs font-semibold text-gray-300 hover:text-white"
           >
             Ver sitio público
           </Link>
           <form action="/api/logout" method="POST">
             <button
               type="submit"
-              className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-[#C51D28]"
+              className="flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-red-300"
             >
               <LogOut size={16} />
               Cerrar sesión

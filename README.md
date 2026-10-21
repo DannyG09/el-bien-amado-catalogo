@@ -14,6 +14,11 @@ Catálogo web de vehículos de alquiler para **El Bien Amado Rent A Car**, con p
 - Inicio de sesión protegido con cookie firmada (HMAC, `httpOnly`, duración de 8 h).
 - Crear, editar y eliminar vehículos.
 - Subida de hasta 8 fotos por vehículo a Cloudinary mediante firma en servidor.
+- Registro de mantenimiento por vehículo, gastos en DOP, categorías e historial de kilometraje.
+- Edición de registros de mantenimiento existentes.
+- Gastos recurrentes mensuales y anuales por vehículo, con cálculo automático de próxima fecha.
+- Orden de fotografías de portada hacia atrás y consulta de los últimos cinco mantenimientos desde la edición del vehículo.
+- Resumen de mantenimiento histórico, proyección anual de gastos recurrentes y kilometraje más reciente.
 
 ## 🛠️ Tecnologías
 
@@ -63,6 +68,16 @@ La app espera estas tablas (nombres de columnas según las consultas del código
 
 - **`vehiculos`**: `id`, `marca`, `modelo`, `anio`, `placa`, `color`, `tiposeguro`, `preciodia`, `imagen`, `descripcion`, `disponible`
 - **`vehiculo_fotos`**: fotos asociadas a cada vehículo (relación con `vehiculos.id`)
+- **`mantenimientos`**: registros de gasto y kilometraje, asociados a `vehiculos.id`.
+
+Antes de usar el apartado de mantenimiento, ejecuta en la base de datos el script
+[`database/migrations/001_mantenimientos.sql`](./database/migrations/001_mantenimientos.sql).
+Después, ejecuta [`database/migrations/002_gastos_recurrentes.sql`](./database/migrations/002_gastos_recurrentes.sql)
+para habilitar los gastos recurrentes y su cálculo en los reportes.
+Los gastos de mantenimiento y recurrentes se registran en pesos dominicanos (DOP);
+la proyección anual convierte cada gasto mensual a doce meses y mantiene los gastos
+históricos identificados por separado. El kilometraje máximo usa la última lectura
+registrada para cada vehículo.
 
 ## ▶️ Scripts
 
@@ -99,6 +114,12 @@ public/                      # Logo e imágenes
 | PUT / DELETE | `/api/vehiculos/:id` | Admin |
 | GET | `/api/vehiculo-fotos?vehiculoId=` | Público |
 | POST / DELETE | `/api/vehiculo-fotos` | Admin |
+| GET / POST | `/api/mantenimientos` | Admin |
+| PUT | `/api/mantenimientos/:id` | Admin |
+| GET | `/api/vehiculos/:id/mantenimientos` | Admin |
+| GET / POST | `/api/vehiculos/:id/gastos-recurrentes` | Admin |
+| PUT / DELETE | `/api/vehiculos/:id/gastos-recurrentes/:gastoId` | Admin |
+| POST / DELETE / PATCH | `/api/vehiculo-fotos` | Admin |
 | POST | `/api/login` · `/api/logout` | — |
 
 ## 👤 Autor

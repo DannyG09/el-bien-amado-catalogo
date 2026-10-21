@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import AdminPageHeader from "../AdminPageHeader";
 
 /*
   PALETA: negro, rojo #D4202C y blanco.
@@ -53,25 +54,34 @@ export default function VehiculosAdminPage() {
   const [precioMax, setPrecioMax] = useState("");
 
   useEffect(() => {
-    cargarVehiculos();
-  }, []);
+    let cancelado = false;
 
-  async function cargarVehiculos() {
-    try {
-      setCargando(true);
-      setError("");
+    async function cargarVehiculos() {
+      try {
+        const respuesta = await fetch("/api/vehiculos", {
+          cache: "no-store",
+        });
+        if (!respuesta.ok) {
+          throw new Error("No se pudieron cargar los vehículos.");
+        }
 
-      const respuesta = await fetch("/api/vehiculos");
-      if (!respuesta.ok) throw new Error("No se pudieron cargar los vehículos");
-
-      setVehiculos(await respuesta.json());
-    } catch (error) {
-      console.error(error);
-      setError("Ocurrió un error al cargar los vehículos.");
-    } finally {
-      setCargando(false);
+        const datos = (await respuesta.json()) as Vehiculo[];
+        if (!cancelado) setVehiculos(datos);
+      } catch (errorCarga) {
+        if (!cancelado) {
+          console.error(errorCarga);
+          setError("Ocurrió un error al cargar los vehículos.");
+        }
+      } finally {
+        if (!cancelado) setCargando(false);
+      }
     }
-  }
+
+    void cargarVehiculos();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   async function eliminarVehiculo(id: number) {
     if (!window.confirm("¿Seguro que deseas eliminar este vehículo?")) return;
@@ -154,43 +164,24 @@ export default function VehiculosAdminPage() {
 
   return (
     <main className="min-h-screen bg-gray-100">
-      {/* ENCABEZADO */}
-      <header className="border-b-4 border-[#D4202C] bg-black">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <img
-              src="/logo.jpeg"
-              alt="El Bien Amado Rent A Car"
-              className="h-14 w-14 rounded-full ring-2 ring-[#D4202C]"
-            />
-            <div>
-              <p className="text-xs font-semibold tracking-[0.25em] text-gray-400">
-                ADMINISTRACIÓN
-              </p>
-              <h1 className="text-2xl font-extrabold text-white sm:text-3xl">
-                Vehículos
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+        <AdminPageHeader
+          title="Vehículos"
+          description="Administra el inventario, la disponibilidad y las fotografías de tu flota."
+        >
             <Link
               href="/"
-              className="rounded-lg border border-white/30 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white hover:text-black"
+              className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
             >
               Ver sitio
             </Link>
             <Link
               href="/admin/vehiculos/nuevo"
-              className="rounded-lg bg-[#D4202C] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-900/30 transition hover:bg-[#b81b26]"
+              className="rounded-xl bg-[#D4202C] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-900/15 transition hover:bg-[#b81b26]"
             >
-              + Nuevo vehículo
+              Agregar vehículo
             </Link>
-          </div>
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+        </AdminPageHeader>
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 font-medium text-[#D4202C]">
             {error}

@@ -3,7 +3,13 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { ArrowDown, ArrowUp, CalendarClock, Trash2 } from "lucide-react";
 import { subirFotoCloudinary } from "../../../../lib/uploadCloudinary";
+import {
+  FRECUENCIAS_GASTO,
+  type GastoRecurrente,
+} from "../../../../lib/gastos-recurrentes";
+import AdminPageHeader from "../../../AdminPageHeader";
 
 type Vehiculo = {
   id: number;
@@ -27,10 +33,49 @@ type Foto = {
 };
 
 type FotoNueva = {
+  key: string;
   url: string;
   publicId: string;
   archivo: File;
 };
+
+type MantenimientoReciente = {
+  id: number;
+  fecha: string;
+  categoria: string;
+  monto: number;
+  kilometraje: number;
+  descripcion: string | null;
+};
+
+type FotoVisible = {
+  key: string;
+  nueva: boolean;
+  foto: Foto | FotoNueva;
+};
+
+const FORMATO_DOP = new Intl.NumberFormat("es-DO", {
+  style: "currency",
+  currency: "DOP",
+});
+
+function formatFecha(fecha: string) {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-DO", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(anio, mes - 1, dia)));
+}
+
+function fechaLocalHoy() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(hoy.getDate()).padStart(2, "0")}`;
+}
 
 export default function EditarVehiculoPage() {
   const params = useParams<{ id: string }>();
@@ -40,7 +85,21 @@ export default function EditarVehiculoPage() {
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [fotosNuevas, setFotosNuevas] = useState<FotoNueva[]>([]);
+  const [ordenFotos, setOrdenFotos] = useState<string[]>([]);
   const [idsEliminar, setIdsEliminar] = useState<number[]>([]);
+  const [gastosRecurrentes, setGastosRecurrentes] = useState<
+    GastoRecurrente[]
+  >([]);
+  const [mantenimientosRecientes, setMantenimientosRecientes] = useState<
+    MantenimientoReciente[]
+  >([]);
+  const [nombreGasto, setNombreGasto] = useState("");
+  const [frecuenciaGasto, setFrecuenciaGasto] =
+    useState<(typeof FRECUENCIAS_GASTO)[number]>("anual");
+  const [fechaInicioGasto, setFechaInicioGasto] = useState(fechaLocalHoy);
+  const [montoGasto, setMontoGasto] = useState("");
+  const [gastoEditandoId, setGastoEditandoId] = useState<number | null>(null);
+  const [guardandoGasto, setGuardandoGasto] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -51,9 +110,16 @@ export default function EditarVehiculoPage() {
 
     async function cargarDatos() {
       try {
-        const [respuestaVehiculo, respuestaFotos] = await Promise.all([
+        const [
+          respuestaVehiculo,
+          respuestaFotos,
+          respuestaGastos,
+          respuestaMantenimientos,
+        ] = await Promise.all([
           fetch(`/api/vehiculos/${id}`),
           fetch(`/api/vehiculo-fotos?vehiculoId=${encodeURIComponent(id)}`),
+          fetch(`/api/vehiculos/${id}/gastos-recurrentes`),
+          fetch(`/api/vehiculos/${id}/mantenimientos`),
         ]);
 
         const datos = await respuestaVehiculo.json();
@@ -81,15 +147,42 @@ export default function EditarVehiculoPage() {
           const resultadoFotos = await respuestaFotos.json();
 
           if (Array.isArray(resultadoFotos) && !cancelado) {
-            setFotos(
-              resultadoFotos.map((foto: any) => ({
+            const fotosCargadas: Foto[] = resultadoFotos.map(
+              (foto: Record<string, unknown>) => ({
                 id: Number(foto.id),
-                url: foto.url,
-                publicId: foto.publicId ?? foto.public_id ?? "",
+                url: String(foto.url),
+                publicId: String(foto.publicId ?? foto.public_id ?? ""),
                 orden: Number(foto.orden ?? 0),
-              }))
+              })
             );
+            setFotos(fotosCargadas);
+            setOrdenFotos(fotosCargadas.map((foto) => String(foto.id)));
           }
+        }
+
+        if (!respuestaGastos.ok) {
+          const detalle = (await respuestaGastos.json()) as { error?: string };
+          throw new Error(
+            detalle.error ?? "No se pudieron obtener los gastos recurrentes."
+          );
+        }
+        if (!respuestaMantenimientos.ok) {
+          const detalle = (await respuestaMantenimientos.json()) as {
+            error?: string;
+          };
+          throw new Error(
+            detalle.error ??
+              "No se pudieron obtener los mantenimientos recientes."
+          );
+        }
+
+        const [gastosCargados, mantenimientosCargados] = await Promise.all([
+          respuestaGastos.json() as Promise<GastoRecurrente[]>,
+          respuestaMantenimientos.json() as Promise<MantenimientoReciente[]>,
+        ]);
+        if (!cancelado) {
+          setGastosRecurrentes(gastosCargados);
+          setMantenimientosRecientes(mantenimientosCargados);
         }
       } catch (e) {
         if (!cancelado) {
@@ -159,6 +252,7 @@ export default function EditarVehiculoPage() {
       }
 
       validos.push({
+        key: `nueva:${crypto.randomUUID()}`,
         archivo,
         url: URL.createObjectURL(archivo),
         publicId: "",
@@ -166,15 +260,49 @@ export default function EditarVehiculoPage() {
     }
 
     setFotosNuevas((actuales) => [...actuales, ...validos]);
+    setOrdenFotos((actuales) => [
+      ...actuales,
+      ...validos.map((foto) => foto.key),
+    ]);
     e.target.value = "";
   }
 
   function quitarFotoNueva(indice: number) {
-    setFotosNuevas((actuales) => {
-      const foto = actuales[indice];
-      if (foto) URL.revokeObjectURL(foto.url);
-      return actuales.filter((_, i) => i !== indice);
-    });
+    const foto = fotosNuevas[indice];
+    if (!foto) return;
+    URL.revokeObjectURL(foto.url);
+    setOrdenFotos((ordenActual) =>
+      ordenActual.filter((key) => key !== foto.key)
+    );
+    setFotosNuevas((actuales) => actuales.filter((_, i) => i !== indice));
+  }
+
+  const fotosVisibles: FotoVisible[] = [];
+  for (const key of ordenFotos) {
+    const fotoExistente = fotos.find((foto) => String(foto.id) === key);
+    if (fotoExistente) {
+      if (!idsEliminar.includes(fotoExistente.id)) {
+        fotosVisibles.push({ key, nueva: false, foto: fotoExistente });
+      }
+      continue;
+    }
+
+    const fotoNueva = fotosNuevas.find((foto) => foto.key === key);
+    if (fotoNueva) fotosVisibles.push({ key, nueva: true, foto: fotoNueva });
+  }
+
+  function moverFoto(key: string, direccion: -1 | 1) {
+    const visibles = fotosVisibles.map((item) => item.key);
+    const indice = visibles.indexOf(key);
+    const destino = indice + direccion;
+    if (indice < 0 || destino < 0 || destino >= visibles.length) return;
+
+    [visibles[indice], visibles[destino]] = [
+      visibles[destino],
+      visibles[indice],
+    ];
+    const ocultas = ordenFotos.filter((fotoKey) => !visibles.includes(fotoKey));
+    setOrdenFotos([...visibles, ...ocultas]);
   }
 
   function alternarEliminar(idFoto: number) {
@@ -183,6 +311,113 @@ export default function EditarVehiculoPage() {
         ? actuales.filter((id) => id !== idFoto)
         : [...actuales, idFoto]
     );
+  }
+
+  function limpiarFormularioGasto() {
+    setNombreGasto("");
+    setFrecuenciaGasto("anual");
+    setFechaInicioGasto(fechaLocalHoy());
+    setMontoGasto("");
+    setGastoEditandoId(null);
+  }
+
+  function editarGasto(gasto: GastoRecurrente) {
+    setGastoEditandoId(gasto.id);
+    setNombreGasto(gasto.nombre);
+    setFrecuenciaGasto(gasto.frecuencia);
+    setFechaInicioGasto(gasto.fechaInicio);
+    setMontoGasto(String(gasto.monto));
+  }
+
+  async function guardarGastoRecurrente(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (guardandoGasto) return;
+
+    setGuardandoGasto(true);
+    setError("");
+    setMensaje("");
+
+    try {
+      const editando = gastoEditandoId !== null;
+      const respuesta = await fetch(
+        editando
+          ? `/api/vehiculos/${id}/gastos-recurrentes/${gastoEditandoId}`
+          : `/api/vehiculos/${id}/gastos-recurrentes`,
+        {
+          method: editando ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nombre: nombreGasto,
+            frecuencia: frecuenciaGasto,
+            fechaInicio: fechaInicioGasto,
+            monto: Number(montoGasto),
+          }),
+        }
+      );
+
+      if (!respuesta.ok) {
+        const resultado = (await respuesta.json()) as { error?: string };
+        throw new Error(
+          resultado.error ?? "No se pudo guardar el gasto recurrente."
+        );
+      }
+      const resultado = (await respuesta.json()) as GastoRecurrente;
+
+      setGastosRecurrentes((actuales) =>
+        editando
+          ? actuales.map((gasto) =>
+              gasto.id === resultado.id ? resultado : gasto
+            )
+          : [resultado, ...actuales]
+      );
+      limpiarFormularioGasto();
+      setMensaje(
+        editando
+          ? "Gasto recurrente actualizado."
+          : "Gasto recurrente agregado."
+      );
+    } catch (e) {
+      console.error("Error al guardar gasto recurrente:", e);
+      setError(
+        e instanceof Error ? e.message : "No se pudo guardar el gasto."
+      );
+    } finally {
+      setGuardandoGasto(false);
+    }
+  }
+
+  async function eliminarGastoRecurrente(gasto: GastoRecurrente) {
+    if (
+      !window.confirm(
+        `¿Eliminar el gasto recurrente "${gasto.nombre}" de este vehículo?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const respuesta = await fetch(
+        `/api/vehiculos/${id}/gastos-recurrentes/${gasto.id}`,
+        { method: "DELETE" }
+      );
+      if (!respuesta.ok) {
+        const resultado = (await respuesta.json()) as { error?: string };
+        throw new Error(
+          resultado.error ?? "No se pudo eliminar el gasto recurrente."
+        );
+      }
+
+      setGastosRecurrentes((actuales) =>
+        actuales.filter((actual) => actual.id !== gasto.id)
+      );
+      if (gastoEditandoId === gasto.id) limpiarFormularioGasto();
+      setMensaje("Gasto recurrente eliminado.");
+    } catch (e) {
+      console.error("Error al eliminar gasto recurrente:", e);
+      setError(
+        e instanceof Error ? e.message : "No se pudo eliminar el gasto."
+      );
+    }
   }
 
   async function guardar(e: React.FormEvent) {
@@ -219,16 +454,16 @@ export default function EditarVehiculoPage() {
         throw new Error(datos.error || "No se pudo actualizar el vehículo.");
       }
 
-      // 2. Subir las nuevas fotografías a Cloudinary.
-      const subidas: { url: string; publicId: string }[] = [];
-
-      for (const foto of fotosNuevas) {
+      // Subir las nuevas fotos siguiendo el orden que se muestra en pantalla.
+      const subidas: { key: string; url: string; publicId: string }[] = [];
+      for (const fotoVisible of fotosVisibles) {
+        if (!fotoVisible.nueva) continue;
+        const foto = fotoVisible.foto as FotoNueva;
         const resultado = await subirFotoCloudinary(foto.archivo);
-        subidas.push(resultado);
+        subidas.push({ key: foto.key, ...resultado });
       }
 
-      // 3. Eliminar de la base de datos las fotos marcadas.
-      // La API DELETE debe implementarse en /api/vehiculo-fotos.
+      // Eliminar las fotos marcadas antes de fijar el orden final.
       if (idsEliminar.length > 0) {
         const respuestaEliminar = await fetch("/api/vehiculo-fotos", {
           method: "DELETE",
@@ -248,18 +483,21 @@ export default function EditarVehiculoPage() {
         }
       }
 
-      // 4. Registrar en la base de datos las nuevas fotografías.
+      const idsNuevas = new Map<string, number>();
       if (subidas.length > 0) {
         const respuestaFotos = await fetch("/api/vehiculo-fotos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             vehiculoId: Number(id),
-            fotos: subidas,
+            fotos: subidas.map(({ url, publicId }) => ({ url, publicId })),
           }),
         });
 
-        const datosFotos = await respuestaFotos.json();
+        const datosFotos = (await respuestaFotos.json()) as {
+          error?: string;
+          fotos?: { id: number; publicId: string }[];
+        };
 
         if (!respuestaFotos.ok) {
           throw new Error(
@@ -267,19 +505,47 @@ export default function EditarVehiculoPage() {
           );
         }
 
-        // Si el vehículo todavía no tenía imagen principal,
-        // usar la primera foto subida.
-        if (!vehiculo.imagen && subidas[0]) {
-          await fetch(`/api/vehiculos/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...vehiculo, imagen: subidas[0].url }),
-          });
+        const idsPorPublicId = new Map(
+          (datosFotos.fotos ?? []).map((foto) => [foto.publicId, foto.id])
+        );
+        for (const subida of subidas) {
+          const fotoId = idsPorPublicId.get(subida.publicId);
+          if (fotoId !== undefined) idsNuevas.set(subida.key, fotoId);
+        }
+      }
+
+      const idsOrdenados = fotosVisibles.map((item) =>
+        item.nueva
+          ? idsNuevas.get(item.key)
+          : (item.foto as Foto).id
+      );
+      if (idsOrdenados.some((fotoId) => fotoId === undefined)) {
+        throw new Error(
+          "No se pudo determinar el orden de todas las fotografías guardadas."
+        );
+      }
+
+      if (idsOrdenados.length > 0) {
+        const respuestaOrden = await fetch("/api/vehiculo-fotos", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vehiculoId: Number(id),
+            fotoIds: idsOrdenados,
+          }),
+        });
+        if (!respuestaOrden.ok) {
+          const resultadoOrden = (await respuestaOrden.json()) as {
+            error?: string;
+          };
+          throw new Error(
+            resultadoOrden.error ??
+              "No se pudo guardar el orden de las fotografías."
+          );
         }
       }
 
       setMensaje("Vehículo y fotografías guardados correctamente.");
-      alert("Vehículo y fotografías guardados correctamente.");
       router.push("/admin/vehiculos");
       router.refresh();
     } catch (e) {
@@ -312,17 +578,21 @@ export default function EditarVehiculoPage() {
     );
   }
 
-  const fotosVisibles = fotos.filter((foto) => !idsEliminar.includes(foto.id));
-
   return (
     <main className="min-h-screen bg-gray-100 p-6 md:p-10">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Editar vehículo</h1>
-          <p className="mt-2 text-gray-600">
-            Modifica los datos y administra las fotografías del vehículo.
-          </p>
-        </header>
+        <AdminPageHeader
+          title="Editar vehículo"
+          description="Actualiza los datos, organiza las fotografías y gestiona los gastos recurrentes."
+        >
+          <button
+            type="button"
+            onClick={() => router.push("/admin/vehiculos")}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+          >
+            Volver a vehículos
+          </button>
+        </AdminPageHeader>
 
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
@@ -430,45 +700,93 @@ export default function EditarVehiculoPage() {
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {fotosVisibles.map((foto) => (
-                <div key={foto.id} className="overflow-hidden rounded-xl border">
-                  <img
-                    src={foto.url}
-                    alt="Fotografía del vehículo"
-                    className="h-36 w-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => alternarEliminar(foto.id)}
-                    className="w-full bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
-                  >
-                    Marcar para eliminar
-                  </button>
-                </div>
-              ))}
-
-              {fotosNuevas.map((foto, indice) => (
-                <div key={`${foto.archivo.name}-${indice}`} className="overflow-hidden rounded-xl border-2 border-green-300">
-                  <img
-                    src={foto.url}
-                    alt={foto.archivo.name}
-                    className="h-36 w-full object-cover"
-                  />
-                  <p className="truncate px-2 py-2 text-xs text-gray-600">
-                    {foto.archivo.name}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => quitarFotoNueva(indice)}
-                    className="w-full bg-gray-100 px-3 py-2 text-sm font-semibold hover:bg-gray-200"
-                  >
-                    Quitar selección
-                  </button>
+              {fotosVisibles.map((item, indice) => (
+                <div
+                  key={item.key}
+                  className={`overflow-hidden rounded-xl border ${
+                    item.nueva
+                      ? "border-green-300"
+                      : "border-gray-200"
+                  }`}
+                >
+                  <div className="relative">
+                    <img
+                      src={item.foto.url}
+                      alt={
+                        item.nueva
+                          ? (item.foto as FotoNueva).archivo.name
+                          : `Fotografía ${indice + 1} del vehículo`
+                      }
+                      loading="lazy"
+                      decoding="async"
+                      className="h-36 w-full object-cover"
+                    />
+                    <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-xs font-bold text-white">
+                      {indice === 0 ? "Portada" : `Foto ${indice + 1}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-b px-2 py-2">
+                    <span className="text-xs font-semibold text-gray-600">
+                      Orden: {indice + 1}
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Mover foto ${indice + 1} hacia adelante`}
+                        title="Mover hacia adelante"
+                        disabled={indice === 0}
+                        onClick={() => moverFoto(item.key, -1)}
+                        className="rounded-md border p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                      >
+                        <ArrowUp size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Mover foto ${indice + 1} hacia atrás`}
+                        title="Mover hacia atrás"
+                        disabled={indice === fotosVisibles.length - 1}
+                        onClick={() => moverFoto(item.key, 1)}
+                        className="rounded-md border p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                      >
+                        <ArrowDown size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  {item.nueva ? (
+                    <>
+                      <p className="truncate px-2 py-2 text-xs text-gray-600">
+                        {(item.foto as FotoNueva).archivo.name}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          quitarFotoNueva(
+                            fotosNuevas.findIndex(
+                              (foto) => foto.key === item.key
+                            )
+                          )
+                        }
+                        className="w-full bg-gray-100 px-3 py-2 text-sm font-semibold hover:bg-gray-200"
+                      >
+                        Quitar selección
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        alternarEliminar((item.foto as Foto).id)
+                      }
+                      className="w-full bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      Marcar para eliminar
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
 
-            {fotosVisibles.length + fotosNuevas.length === 0 && (
+            {fotosVisibles.length === 0 && (
               <p className="mt-5 rounded-lg bg-gray-50 p-5 text-sm text-gray-500">
                 No hay fotografías seleccionadas para este vehículo.
               </p>
@@ -514,6 +832,216 @@ export default function EditarVehiculoPage() {
             </button>
           </div>
         </form>
+
+        <section className="mt-8 rounded-xl bg-white p-6 shadow-sm md:p-8">
+          <div className="mb-6 flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <CalendarClock size={22} />
+            </span>
+            <div>
+              <h2 className="text-xl font-bold">Otros gastos recurrentes</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Seguro, marbete, GPS y otros pagos en DOP. La próxima fecha se
+                calcula según la periodicidad.
+              </p>
+            </div>
+          </div>
+
+          <form
+            onSubmit={guardarGastoRecurrente}
+            className="grid gap-4 rounded-xl bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-4"
+          >
+            <label className="text-sm font-medium text-gray-700">
+              Nombre del gasto
+              <input
+                required
+                maxLength={120}
+                list="opciones-gastos-recurrentes"
+                value={nombreGasto}
+                onChange={(evento) => setNombreGasto(evento.target.value)}
+                placeholder="Ej. Seguro anual"
+                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+              />
+              <datalist id="opciones-gastos-recurrentes">
+                <option value="Seguro anual" />
+                <option value="Marbete" />
+                <option value="GPS" />
+                <option value="Otro" />
+              </datalist>
+            </label>
+
+            <label className="text-sm font-medium text-gray-700">
+              Frecuencia
+              <select
+                value={frecuenciaGasto}
+                onChange={(evento) =>
+                  setFrecuenciaGasto(
+                    evento.target.value as (typeof FRECUENCIAS_GASTO)[number]
+                  )
+                }
+                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+              >
+                <option value="anual">Cada año</option>
+                <option value="mensual">Cada mes</option>
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-gray-700">
+              Fecha de inicio / instalación
+              <input
+                required
+                type="date"
+                value={fechaInicioGasto}
+                onChange={(evento) =>
+                  setFechaInicioGasto(evento.target.value)
+                }
+                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-gray-700">
+              Monto (DOP)
+              <input
+                required
+                min="0.01"
+                step="0.01"
+                type="number"
+                inputMode="decimal"
+                value={montoGasto}
+                onChange={(evento) => setMontoGasto(evento.target.value)}
+                placeholder="0.00"
+                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+              />
+            </label>
+
+            <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-4">
+              <button
+                type="submit"
+                disabled={guardandoGasto}
+                className="rounded-lg bg-[#D4202C] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#b81b26] disabled:opacity-50"
+              >
+                {guardandoGasto
+                  ? "Guardando..."
+                  : gastoEditandoId
+                    ? "Guardar gasto"
+                    : "Agregar gasto"}
+              </button>
+              {gastoEditandoId !== null && (
+                <button
+                  type="button"
+                  disabled={guardandoGasto}
+                  onClick={limpiarFormularioGasto}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                >
+                  Cancelar edición
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="mt-5 divide-y divide-gray-100">
+            {gastosRecurrentes.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500">
+                Este vehículo todavía no tiene gastos recurrentes registrados.
+              </p>
+            ) : (
+              gastosRecurrentes.map((gasto) => (
+                <article
+                  key={gasto.id}
+                  className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <h3 className="font-bold text-gray-900">{gasto.nombre}</h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Cada {gasto.frecuencia === "anual" ? "año" : "mes"} desde{" "}
+                      {formatFecha(gasto.fechaInicio)}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[#D4202C]">
+                      Próximo pago: {formatFecha(gasto.fechaProxima)}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">
+                      {FORMATO_DOP.format(gasto.monto)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => editarGasto(gasto)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void eliminarGastoRecurrente(gasto)}
+                      aria-label={`Eliminar ${gasto.nombre}`}
+                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 size={16} />
+                      Borrar
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-xl bg-white p-6 shadow-sm md:p-8">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+              <CalendarClock size={22} />
+            </span>
+            <div>
+              <h2 className="text-xl font-bold">Últimos mantenimientos</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Los cinco registros más recientes de este vehículo.
+              </p>
+            </div>
+          </div>
+
+          {mantenimientosRecientes.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500">
+              No hay mantenimientos registrados para este vehículo.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Fecha</th>
+                    <th className="px-4 py-3 font-semibold">Categoría</th>
+                    <th className="px-4 py-3 font-semibold">Kilometraje</th>
+                    <th className="px-4 py-3 font-semibold">Gasto</th>
+                    <th className="px-4 py-3 font-semibold">Descripción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {mantenimientosRecientes.map((mantenimiento) => (
+                    <tr key={mantenimiento.id} className="text-gray-700">
+                      <td className="whitespace-nowrap px-4 py-3">
+                        {formatFecha(mantenimiento.fecha)}
+                      </td>
+                      <td className="px-4 py-3">{mantenimiento.categoria}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        {new Intl.NumberFormat("es-DO").format(
+                          mantenimiento.kilometraje
+                        )}{" "}
+                        km
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 font-semibold">
+                        {FORMATO_DOP.format(mantenimiento.monto)}
+                      </td>
+                      <td className="max-w-xs px-4 py-3">
+                        {mantenimiento.descripcion || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );

@@ -8,6 +8,7 @@ import {
   subirFotoCloudinary,
   type FotoCloudinary,
 } from "@/app/lib/uploadCloudinary";
+import AdminPageHeader from "../../AdminPageHeader";
 
 /*
   PALETA: negro, rojo #D4202C y blanco.
@@ -265,40 +266,18 @@ export default function NuevoVehiculoPage() {
 
   return (
     <main className="min-h-screen bg-gray-100">
-      {/* ENCABEZADO */}
-      <header className="border-b-4 border-[#D4202C] bg-black">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-6 sm:px-6">
-          <div className="flex items-center gap-4">
-            <img
-              src="/logo.jpeg"
-              alt="El Bien Amado Rent A Car"
-              className="h-14 w-14 rounded-full ring-2 ring-[#D4202C]"
-            />
-
-            <div>
-              <p className="text-xs font-semibold tracking-[0.25em] text-gray-400">
-                ADMINISTRACIÓN
-              </p>
-
-              <h1 className="text-2xl font-extrabold text-white sm:text-3xl">
-                Nuevo vehículo
-              </h1>
-            </div>
-          </div>
-
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+        <AdminPageHeader
+          title="Nuevo vehículo"
+          description="Registra un vehículo en el catálogo y agrega sus fotografías."
+        >
           <Link
             href="/admin/vehiculos"
-            className="rounded-lg border border-white/30 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white hover:text-black"
+            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
           >
-            ← Volver
+            Volver a vehículos
           </Link>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
-        <p className="mb-6 text-gray-600">
-          Registra un nuevo vehículo en el catálogo y agrega sus fotografías.
-        </p>
+        </AdminPageHeader>
 
         {error && (
           <div

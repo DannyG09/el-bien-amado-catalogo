@@ -163,7 +163,12 @@ export async function POST(request: Request) {
     );
 
     let orden = Number(resultadoOrden.rows[0]?.siguiente ?? 0);
-    let guardadas = 0;
+    const fotosGuardadas: {
+      id: number;
+      url: string;
+      publicId: string;
+      orden: number;
+    }[] = [];
 
     for (const foto of fotosValidas) {
       const insertada = await db.query(
@@ -171,12 +176,15 @@ export async function POST(request: Request) {
           (vehiculo_id, url, public_id, orden)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (public_id) DO NOTHING
-         RETURNING id`,
+         RETURNING id, url, public_id AS "publicId", orden`,
         [vehiculoId, foto.url, foto.publicId, orden]
       );
 
       if (insertada.rows.length > 0) {
-        guardadas++;
+        fotosGuardadas.push({
+          ...insertada.rows[0],
+          id: Number(insertada.rows[0].id),
+        });
         orden++;
       }
     }
@@ -184,7 +192,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         mensaje: "Fotografías procesadas correctamente.",
-        cantidad: guardadas,
+        cantidad: fotosGuardadas.length,
+        fotos: fotosGuardadas,
       },
       { status: 201 }
     );
@@ -193,6 +202,135 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { error: "No se pudieron guardar las fotografías." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    if (!(await isAdminAuthenticated())) {
+      return NextResponse.json(
+        { error: "No autorizado. Inicia sesión como administrador." },
+        { status: 401 }
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "El cuerpo de la solicitud no contiene JSON válido." },
+        { status: 400 }
+      );
+    }
+
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "Los datos del orden de fotografías no son válidos." },
+        { status: 400 }
+      );
+    }
+
+    const datos = body as Record<string, unknown>;
+    const vehiculoId = datos.vehiculoId;
+    const fotoIds = datos.fotoIds;
+    if (
+      typeof vehiculoId !== "number" ||
+      !Number.isSafeInteger(vehiculoId) ||
+      vehiculoId <= 0 ||
+      !Array.isArray(fotoIds) ||
+      fotoIds.length < 1 ||
+      fotoIds.length > 8 ||
+      !fotoIds.every(
+        (fotoId: unknown) =>
+          typeof fotoId === "number" &&
+          Number.isSafeInteger(fotoId) &&
+          fotoId > 0
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Los datos del orden de fotografías no son válidos." },
+        { status: 400 }
+      );
+    }
+
+    const idsUnicos = [...new Set(fotoIds as number[])];
+    if (idsUnicos.length !== fotoIds.length) {
+      return NextResponse.json(
+        { error: "Hay fotografías repetidas en el orden indicado." },
+        { status: 400 }
+      );
+    }
+
+    const pool = await getConnection();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existentes = await client.query(
+        `SELECT id, url
+         FROM public.vehiculo_fotos
+         WHERE vehiculo_id = $1
+         ORDER BY orden ASC, id ASC
+         FOR UPDATE`,
+        [vehiculoId]
+      );
+      const idsActuales = existentes.rows.map((foto) => Number(foto.id));
+      if (
+        idsActuales.length !== idsUnicos.length ||
+        idsActuales.some((fotoId) => !idsUnicos.includes(fotoId))
+      ) {
+        await client.query("ROLLBACK");
+        return NextResponse.json(
+          {
+            error:
+              "La lista de fotografías cambió. Recarga la página e inténtalo de nuevo.",
+          },
+          { status: 409 }
+        );
+      }
+
+      for (const [indice, fotoId] of idsUnicos.entries()) {
+        await client.query(
+          `UPDATE public.vehiculo_fotos
+           SET orden = $1
+           WHERE id = $2 AND vehiculo_id = $3`,
+          [-(idsUnicos.length + indice + 1), fotoId, vehiculoId]
+        );
+      }
+
+      for (const [orden, fotoId] of idsUnicos.entries()) {
+        await client.query(
+          `UPDATE public.vehiculo_fotos
+           SET orden = $1
+           WHERE id = $2 AND vehiculo_id = $3`,
+          [orden, fotoId, vehiculoId]
+        );
+      }
+
+      const fotoPrincipal = existentes.rows.find(
+        (foto) => Number(foto.id) === idsUnicos[0]
+      );
+      await client.query(
+        "UPDATE public.vehiculos SET imagen = $1 WHERE id = $2",
+        [fotoPrincipal.url, vehiculoId]
+      );
+      await client.query("COMMIT");
+
+      return NextResponse.json({
+        mensaje: "Orden de fotografías actualizado correctamente.",
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error("Error al ordenar fotografías:", error);
+    return NextResponse.json(
+      { error: "No se pudo guardar el orden de las fotografías." },
       { status: 500 }
     );
   }
