@@ -14,11 +14,13 @@ Catálogo web de vehículos de alquiler para **El Bien Amado Rent A Car**, con p
 - Inicio de sesión protegido con cookie firmada (HMAC, `httpOnly`, duración de 8 h).
 - Crear, editar y eliminar vehículos.
 - Subida de hasta 8 fotos por vehículo a Cloudinary mediante firma en servidor.
+- Panel principal con indicadores de la flota y accesos rápidos; navegación y encabezados con un diseño visual unificado.
 - Registro de mantenimiento por vehículo, gastos en DOP, categorías e historial de kilometraje.
-- Edición de registros de mantenimiento existentes.
+- Historial de mantenimiento con filtros, paginación de 25 registros y edición de registros existentes.
 - Gastos recurrentes mensuales y anuales por vehículo, con cálculo automático de próxima fecha.
-- Orden de fotografías de portada hacia atrás y consulta de los últimos cinco mantenimientos desde la edición del vehículo.
-- Resumen de mantenimiento histórico, proyección anual de gastos recurrentes y kilometraje más reciente.
+- Reordenamiento de fotografías para elegir la portada y consulta de los últimos cinco mantenimientos desde la edición del vehículo.
+- Resumen de gastos históricos, proyección anual de gastos recurrentes y kilometraje más reciente por vehículo.
+- Interfaz de administración simplificada, sin imagen de fondo, y consultas paginadas para reducir la carga del historial.
 
 ## 🛠️ Tecnologías
 
@@ -69,14 +71,16 @@ La app espera estas tablas (nombres de columnas según las consultas del código
 - **`vehiculos`**: `id`, `marca`, `modelo`, `anio`, `placa`, `color`, `tiposeguro`, `preciodia`, `imagen`, `descripcion`, `disponible`
 - **`vehiculo_fotos`**: fotos asociadas a cada vehículo (relación con `vehiculos.id`)
 - **`mantenimientos`**: registros de gasto y kilometraje, asociados a `vehiculos.id`.
+- **`vehiculo_gastos_recurrentes`**: pagos periódicos asociados a cada vehículo.
 
-Antes de usar el apartado de mantenimiento, ejecuta en la base de datos el script
-[`database/migrations/001_mantenimientos.sql`](./database/migrations/001_mantenimientos.sql).
-Después, ejecuta [`database/migrations/002_gastos_recurrentes.sql`](./database/migrations/002_gastos_recurrentes.sql)
-para habilitar los gastos recurrentes y su cálculo en los reportes.
-Los gastos de mantenimiento y recurrentes se registran en pesos dominicanos (DOP);
-la proyección anual convierte cada gasto mensual a doce meses y mantiene los gastos
-históricos identificados por separado. El kilometraje máximo usa la última lectura
+Ejecuta las migraciones en orden:
+
+1. [`database/migrations/001_mantenimientos.sql`](./database/migrations/001_mantenimientos.sql) habilita el historial de mantenimiento.
+2. [`database/migrations/002_gastos_recurrentes.sql`](./database/migrations/002_gastos_recurrentes.sql) habilita los gastos recurrentes.
+
+Los gastos de mantenimiento y recurrentes se registran en pesos dominicanos (DOP).
+La proyección anual convierte cada gasto mensual a doce meses y presenta los gastos
+históricos por separado. El kilometraje más reciente se obtiene de la última lectura
 registrada para cada vehículo.
 
 ## ▶️ Scripts
@@ -95,12 +99,13 @@ src/app/
 ├── page.tsx                 # Catálogo público
 ├── vehiculos/[id]/          # Detalle de vehículo
 ├── login/                   # Acceso de administrador
-├── admin/                   # Panel (listado, nuevo, editar)
+├── admin/                   # Panel, vehículos y mantenimiento
 ├── api/
-│   ├── vehiculos/           # CRUD de vehículos
-│   ├── vehiculo-fotos/      # Fotos de vehículos
-│   ├── cloudinary-signature/# Firma para subidas
-│   └── login · logout/      # Sesión de administrador
+│   ├── vehiculos/           # Vehículos, mantenimientos recientes y gastos recurrentes
+│   ├── mantenimientos/      # Historial, filtros, paginación y edición
+│   ├── vehiculo-fotos/      # Fotos y orden de galería
+│   ├── cloudinary-signature/# Firma para subidas a Cloudinary
+│   └── login/ · logout/     # Sesión de administrador
 └── lib/                     # db, auth, subida a Cloudinary
 public/                      # Logo e imágenes
 ```
@@ -113,15 +118,15 @@ public/                      # Logo e imágenes
 | POST | `/api/vehiculos` | Admin |
 | PUT / DELETE | `/api/vehiculos/:id` | Admin |
 | GET | `/api/vehiculo-fotos?vehiculoId=` | Público |
-| POST / DELETE | `/api/vehiculo-fotos` | Admin |
+| POST / DELETE / PATCH | `/api/vehiculo-fotos` | Admin |
+| POST | `/api/cloudinary-signature` | Admin |
 | GET / POST | `/api/mantenimientos` | Admin |
 | PUT | `/api/mantenimientos/:id` | Admin |
 | GET | `/api/vehiculos/:id/mantenimientos` | Admin |
 | GET / POST | `/api/vehiculos/:id/gastos-recurrentes` | Admin |
 | PUT / DELETE | `/api/vehiculos/:id/gastos-recurrentes/:gastoId` | Admin |
-| POST / DELETE / PATCH | `/api/vehiculo-fotos` | Admin |
 | POST | `/api/login` · `/api/logout` | — |
 
 ## 👤 Autor
 
-**Danny Guerrero** — [@DannyG09](https://github.com/DannyG09
+**Danny Guerrero** — [@DannyG09](https://github.com/DannyG09)

@@ -3,13 +3,25 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, CalendarClock, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  CalendarClock,
+  CarFront,
+  Check,
+  CircleDollarSign,
+  Gauge,
+  Images,
+  Save,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { subirFotoCloudinary } from "../../../../lib/uploadCloudinary";
 import {
   FRECUENCIAS_GASTO,
   type GastoRecurrente,
 } from "../../../../lib/gastos-recurrentes";
-import AdminPageHeader from "../../../AdminPageHeader";
 
 type Vehiculo = {
   id: number;
@@ -58,6 +70,7 @@ const FORMATO_DOP = new Intl.NumberFormat("es-DO", {
   style: "currency",
   currency: "DOP",
 });
+const FORMATO_NUMERO = new Intl.NumberFormat("es-DO");
 
 function formatFecha(fecha: string) {
   const [anio, mes, dia] = fecha.split("-").map(Number);
@@ -559,56 +572,160 @@ export default function EditarVehiculoPage() {
   }
 
   if (cargando) {
-    return <main className="min-h-screen bg-gray-100 p-10">Cargando vehículo...</main>;
-  }
-
-  if (!vehiculo) {
     return (
-      <main className="min-h-screen bg-gray-100 p-10">
-        <h1 className="text-2xl font-bold">Vehículo no encontrado</h1>
-        <p className="mt-2 text-red-600">{error}</p>
-        <button
-          type="button"
-          onClick={() => router.push("/admin/vehiculos")}
-          className="mt-5 rounded-lg bg-black px-5 py-3 text-white"
-        >
-          Volver a vehículos
-        </button>
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-6 py-5 text-sm font-semibold text-[#D4202C] shadow-sm">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-red-100 border-t-[#D4202C]" />
+          Cargando información del vehículo...
+        </div>
       </main>
     );
   }
 
-  return (
-    <main className="min-h-screen bg-gray-100 p-6 md:p-10">
-      <div className="mx-auto max-w-5xl">
-        <AdminPageHeader
-          title="Editar vehículo"
-          description="Actualiza los datos, organiza las fotografías y gestiona los gastos recurrentes."
+  if (!vehiculo) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-lg rounded-[1.75rem] border border-gray-200 bg-white p-8 shadow-sm">
+        <h1 className="text-2xl font-bold text-gray-950">Vehículo no encontrado</h1>
+        <p className="mt-2 text-sm text-red-700">{error}</p>
+        <button
+          type="button"
+          onClick={() => router.push("/admin/vehiculos")}
+          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#111214] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#D4202C]"
         >
-          <button
-            type="button"
-            onClick={() => router.push("/admin/vehiculos")}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
-          >
-            Volver a vehículos
-          </button>
-        </AdminPageHeader>
+          <ArrowLeft size={16} />
+          Volver a vehículos
+        </button>
+        </div>
+      </main>
+    );
+  }
+
+  const ultimoMantenimiento = mantenimientosRecientes[0] ?? null;
+
+  return (
+    <main className="min-h-screen bg-gray-50 px-4 py-6 text-gray-900 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-6xl">
+        <header className="relative isolate mb-8 overflow-hidden rounded-[2rem] bg-[#111214] px-6 py-7 text-white shadow-[0_24px_60px_-35px_rgba(17,18,20,0.7)] sm:px-9 sm:py-9">
+          <div className="pointer-events-none absolute -right-16 -top-28 -z-10 h-80 w-80 rounded-full border border-white/10" />
+          <div className="pointer-events-none absolute -right-4 -top-16 -z-10 h-56 w-56 rounded-full border border-red-400/20" />
+          <div className="flex flex-col gap-7">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-red-300">
+                  <CarFront size={25} />
+                </span>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-red-300">
+                    El Bien Amado · Flota
+                  </p>
+                  <p className="mt-1 text-sm text-white/65">Gestión del vehículo</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/admin/vehiculos")}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                <ArrowLeft size={16} />
+                Volver a vehículos
+              </button>
+            </div>
+
+            <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+              <div>
+                <p className="text-sm font-medium text-white/60">Editar vehículo</p>
+                <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
+                  {vehiculo.marca} <span className="text-red-300">{vehiculo.modelo}</span>
+                </h1>
+                <p className="mt-2 text-sm text-white/65">
+                  Organiza los detalles, las fotos y el historial de tu unidad.
+                </p>
+              </div>
+              <span
+                className={`inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-bold ${
+                  vehiculo.disponible
+                    ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+                    : "border-amber-200/25 bg-amber-200/10 text-amber-100"
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${vehiculo.disponible ? "bg-emerald-300" : "bg-amber-300"}`} />
+                {vehiculo.disponible ? "Disponible para renta" : "No disponible"}
+              </span>
+            </div>
+
+            <div className="grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-3">
+              <div className="flex items-center gap-3 rounded-2xl bg-white/[0.06] p-4">
+                <Gauge className="shrink-0 text-red-300" size={20} />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">
+                    Último kilometraje
+                  </p>
+                  <p className="mt-1 text-lg font-bold">
+                    {ultimoMantenimiento
+                      ? `${FORMATO_NUMERO.format(ultimoMantenimiento.kilometraje)} km`
+                      : "Sin registro"}
+                  </p>
+                  {ultimoMantenimiento && (
+                    <p className="mt-0.5 text-xs text-white/50">
+                      Mantenimiento del {formatFecha(ultimoMantenimiento.fecha)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl bg-white/[0.06] p-4">
+                <Images className="shrink-0 text-red-300" size={20} />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">
+                    Galería
+                  </p>
+                  <p className="mt-1 text-lg font-bold">{fotosVisibles.length} / 8 fotos</p>
+                  <p className="mt-0.5 text-xs text-white/50">Portada y orden de exhibición</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl bg-white/[0.06] p-4">
+                <CircleDollarSign className="shrink-0 text-red-300" size={20} />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">
+                    Precio por día
+                  </p>
+                  <p className="mt-1 text-lg font-bold">
+                    US$ {FORMATO_NUMERO.format(Number(vehiculo.precioDia))}
+                  </p>
+                  <p className="mt-0.5 text-xs text-white/50">
+                    Placa {vehiculo.placa || "pendiente"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+          <div role="alert" className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
             {error}
           </div>
         )}
 
         {mensaje && (
-          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-green-700">
+          <div role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
             {mensaje}
           </div>
         )}
 
-        <form onSubmit={guardar} className="space-y-8">
-          <section className="rounded-xl bg-white p-6 shadow-sm md:p-8">
-            <h2 className="mb-6 text-xl font-bold">Información del vehículo</h2>
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)]">
+        <div className="min-w-0">
+        <form onSubmit={guardar} className="space-y-6">
+          <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-[#D4202C]">
+                <CarFront size={21} />
+              </span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4202C]">01 · Datos principales</p>
+                <h2 className="mt-0.5 text-xl font-bold text-gray-950">Información del vehículo</h2>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {[
@@ -620,10 +737,11 @@ export default function EditarVehiculoPage() {
                 { label: "Precio por día (USD)", name: "precioDia", type: "number" },
               ].map((campo) => (
                 <div key={campo.name}>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label htmlFor={`vehiculo-${campo.name}`} className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-600">
                     {campo.label}
                   </label>
                   <input
+                    id={`vehiculo-${campo.name}`}
                     type={campo.type}
                     name={campo.name}
                     value={vehiculo[campo.name as keyof Vehiculo] as string | number}
@@ -631,20 +749,21 @@ export default function EditarVehiculoPage() {
                     required
                     min={campo.type === "number" ? 0 : undefined}
                     step={campo.name === "precioDia" ? "0.01" : undefined}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-[#D4202C]"
+                    className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
                   />
                 </div>
               ))}
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label htmlFor="vehiculo-tipoSeguro" className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-600">
                   Tipo de seguro
                 </label>
                 <select
+                  id="vehiculo-tipoSeguro"
                   name="tipoSeguro"
                   value={vehiculo.tipoSeguro}
                   onChange={cambiarCampo}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3"
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
                 >
                   <option value="Full">Full</option>
                   <option value="Ley">Ley</option>
@@ -652,50 +771,62 @@ export default function EditarVehiculoPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label htmlFor="vehiculo-imagen" className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-600">
                   URL de la imagen principal
                 </label>
                 <input
+                  id="vehiculo-imagen"
                   type="url"
                   name="imagen"
                   value={vehiculo.imagen || ""}
                   onChange={cambiarCampo}
                   placeholder="https://..."
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label htmlFor="vehiculo-descripcion" className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-600">
                   Descripción
                 </label>
                 <textarea
+                  id="vehiculo-descripcion"
                   name="descripcion"
                   value={vehiculo.descripcion || ""}
                   onChange={cambiarCampo}
                   rows={4}
-                  className="w-full resize-y rounded-lg border border-gray-300 px-4 py-3"
+                  className="w-full resize-y rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
                 />
               </div>
 
-              <label className="flex items-center gap-3 md:col-span-2">
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:col-span-2">
                 <input
                   type="checkbox"
                   name="disponible"
                   checked={vehiculo.disponible}
                   onChange={cambiarCampo}
-                  className="h-5 w-5"
+                  className="h-5 w-5 accent-[#D4202C]"
                 />
-                <span className="text-sm font-medium text-gray-700">
-                  Vehículo disponible para renta
+                <span>
+                  <span className="block text-sm font-bold text-gray-900">Disponible para renta</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">Activa o pausa la publicación de este vehículo.</span>
                 </span>
+                {vehiculo.disponible && <Check size={18} className="ml-auto text-[#D4202C]" />}
               </label>
             </div>
           </section>
 
-          <section className="rounded-xl bg-white p-6 shadow-sm md:p-8">
-            <h2 className="text-xl font-bold">Fotografías del vehículo</h2>
-            <p className="mt-2 text-sm text-gray-500">
+          <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-[#D4202C]">
+                <Images size={21} />
+              </span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4202C]">02 · Presentación</p>
+                <h2 className="mt-0.5 text-xl font-bold text-gray-950">Fotografías del vehículo</h2>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-gray-500">
               Puedes mantener hasta 8 fotos. Formatos JPG, PNG o WEBP; máximo 5 MB por imagen.
             </p>
 
@@ -703,9 +834,9 @@ export default function EditarVehiculoPage() {
               {fotosVisibles.map((item, indice) => (
                 <div
                   key={item.key}
-                  className={`overflow-hidden rounded-xl border ${
+                  className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
                     item.nueva
-                      ? "border-green-300"
+                      ? "border-emerald-300"
                       : "border-gray-200"
                   }`}
                 >
@@ -721,11 +852,11 @@ export default function EditarVehiculoPage() {
                       decoding="async"
                       className="h-36 w-full object-cover"
                     />
-                    <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-xs font-bold text-white">
+                    <span className="absolute left-2 top-2 rounded-full bg-[#111214]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
                       {indice === 0 ? "Portada" : `Foto ${indice + 1}`}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 border-b px-2 py-2">
+                  <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-3 py-2.5">
                     <span className="text-xs font-semibold text-gray-600">
                       Orden: {indice + 1}
                     </span>
@@ -736,7 +867,7 @@ export default function EditarVehiculoPage() {
                         title="Mover hacia adelante"
                         disabled={indice === 0}
                         onClick={() => moverFoto(item.key, -1)}
-                        className="rounded-md border p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                        className="rounded-lg border border-gray-200 p-1.5 text-gray-600 transition hover:bg-gray-100 disabled:opacity-30"
                       >
                         <ArrowUp size={16} />
                       </button>
@@ -746,7 +877,7 @@ export default function EditarVehiculoPage() {
                         title="Mover hacia atrás"
                         disabled={indice === fotosVisibles.length - 1}
                         onClick={() => moverFoto(item.key, 1)}
-                        className="rounded-md border p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                        className="rounded-lg border border-gray-200 p-1.5 text-gray-600 transition hover:bg-gray-100 disabled:opacity-30"
                       >
                         <ArrowDown size={16} />
                       </button>
@@ -754,7 +885,7 @@ export default function EditarVehiculoPage() {
                   </div>
                   {item.nueva ? (
                     <>
-                      <p className="truncate px-2 py-2 text-xs text-gray-600">
+                      <p className="truncate px-3 py-2 text-xs text-gray-600">
                         {(item.foto as FotoNueva).archivo.name}
                       </p>
                       <button
@@ -766,7 +897,7 @@ export default function EditarVehiculoPage() {
                             )
                           )
                         }
-                        className="w-full bg-gray-100 px-3 py-2 text-sm font-semibold hover:bg-gray-200"
+                        className="w-full bg-gray-100 px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-200"
                       >
                         Quitar selección
                       </button>
@@ -777,7 +908,7 @@ export default function EditarVehiculoPage() {
                       onClick={() =>
                         alternarEliminar((item.foto as Foto).id)
                       }
-                      className="w-full bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                      className="w-full bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
                     >
                       Marcar para eliminar
                     </button>
@@ -787,13 +918,14 @@ export default function EditarVehiculoPage() {
             </div>
 
             {fotosVisibles.length === 0 && (
-              <p className="mt-5 rounded-lg bg-gray-50 p-5 text-sm text-gray-500">
+              <p className="mt-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
                 No hay fotografías seleccionadas para este vehículo.
               </p>
             )}
 
-            <label className="mt-6 flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed border-gray-300 p-8 text-center transition hover:border-[#D4202C]">
-              <span className="text-lg font-bold">+ Agregar fotografías</span>
+            <label className="mt-6 flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-7 text-center transition hover:border-[#D4202C] hover:bg-red-50">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#D4202C] shadow-sm"><Images size={20} /></span>
+              <span className="mt-3 text-base font-bold text-gray-900">Agregar fotografías</span>
               <span className="mt-1 text-sm text-gray-500">
                 Selecciona una o varias imágenes de tu computadora
               </span>
@@ -802,23 +934,23 @@ export default function EditarVehiculoPage() {
                 accept="image/jpeg,image/png,image/webp"
                 multiple
                 onChange={seleccionarFotos}
-                className="mt-4 block w-full max-w-xs text-sm"
+                className="mt-4 block w-full max-w-xs text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#111214] file:px-4 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-[#D4202C]"
               />
             </label>
 
             {idsEliminar.length > 0 && (
-              <p className="mt-4 text-sm font-medium text-red-600">
+              <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">
                 {idsEliminar.length} fotografía(s) marcada(s) para eliminar al guardar.
               </p>
             )}
           </section>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => router.push("/admin/vehiculos")}
               disabled={guardando}
-              className="rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -826,20 +958,24 @@ export default function EditarVehiculoPage() {
             <button
               type="submit"
               disabled={guardando}
-              className="rounded-lg bg-[#D4202C] px-6 py-3 font-semibold text-white transition hover:bg-black disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#b81b26] disabled:opacity-50"
             >
+              <Save size={17} />
               {guardando ? "Guardando cambios..." : "Guardar cambios"}
             </button>
           </div>
         </form>
+        </div>
 
-        <section className="mt-8 rounded-xl bg-white p-6 shadow-sm md:p-8">
+        <aside className="min-w-0 space-y-6">
+        <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-6 flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
               <CalendarClock size={22} />
             </span>
             <div>
-              <h2 className="text-xl font-bold">Otros gastos recurrentes</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4202C]">03 · Costos programados</p>
+              <h2 className="mt-0.5 text-xl font-bold text-gray-950">Otros gastos recurrentes</h2>
               <p className="mt-1 text-sm text-gray-500">
                 Seguro, marbete, GPS y otros pagos en DOP. La próxima fecha se
                 calcula según la periodicidad.
@@ -849,9 +985,9 @@ export default function EditarVehiculoPage() {
 
           <form
             onSubmit={guardarGastoRecurrente}
-            className="grid gap-4 rounded-xl bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-4"
+            className="grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-4"
           >
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-xs font-bold uppercase tracking-wide text-gray-600">
               Nombre del gasto
               <input
                 required
@@ -860,7 +996,7 @@ export default function EditarVehiculoPage() {
                 value={nombreGasto}
                 onChange={(evento) => setNombreGasto(evento.target.value)}
                 placeholder="Ej. Seguro anual"
-                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal outline-none focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
               />
               <datalist id="opciones-gastos-recurrentes">
                 <option value="Seguro anual" />
@@ -870,7 +1006,7 @@ export default function EditarVehiculoPage() {
               </datalist>
             </label>
 
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-xs font-bold uppercase tracking-wide text-gray-600">
               Frecuencia
               <select
                 value={frecuenciaGasto}
@@ -879,14 +1015,14 @@ export default function EditarVehiculoPage() {
                     evento.target.value as (typeof FRECUENCIAS_GASTO)[number]
                   )
                 }
-                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal outline-none focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
               >
                 <option value="anual">Cada año</option>
                 <option value="mensual">Cada mes</option>
               </select>
             </label>
 
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-xs font-bold uppercase tracking-wide text-gray-600">
               Fecha de inicio / instalación
               <input
                 required
@@ -895,11 +1031,11 @@ export default function EditarVehiculoPage() {
                 onChange={(evento) =>
                   setFechaInicioGasto(evento.target.value)
                 }
-                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal outline-none focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
               />
             </label>
 
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-xs font-bold uppercase tracking-wide text-gray-600">
               Monto (DOP)
               <input
                 required
@@ -910,15 +1046,15 @@ export default function EditarVehiculoPage() {
                 value={montoGasto}
                 onChange={(evento) => setMontoGasto(evento.target.value)}
                 placeholder="0.00"
-                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5"
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal outline-none focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
               />
             </label>
 
-            <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-4">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="submit"
                 disabled={guardandoGasto}
-                className="rounded-lg bg-[#D4202C] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#b81b26] disabled:opacity-50"
+                className="rounded-xl bg-[#D4202C] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#b81b26] disabled:opacity-50"
               >
                 {guardandoGasto
                   ? "Guardando..."
@@ -931,7 +1067,7 @@ export default function EditarVehiculoPage() {
                   type="button"
                   disabled={guardandoGasto}
                   onClick={limpiarFormularioGasto}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
                 >
                   Cancelar edición
                 </button>
@@ -941,18 +1077,18 @@ export default function EditarVehiculoPage() {
 
           <div className="mt-5 divide-y divide-gray-100">
             {gastosRecurrentes.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500">
+              <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500">
                 Este vehículo todavía no tiene gastos recurrentes registrados.
               </p>
             ) : (
               gastosRecurrentes.map((gasto) => (
                 <article
                   key={gasto.id}
-                  className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 py-5"
                 >
                   <div>
                     <h3 className="font-bold text-gray-900">{gasto.nombre}</h3>
-                    <p className="mt-1 text-sm text-gray-600">
+                    <p className="mt-1 text-sm text-gray-500">
                       Cada {gasto.frecuencia === "anual" ? "año" : "mes"} desde{" "}
                       {formatFecha(gasto.fechaInicio)}
                     </p>
@@ -963,11 +1099,11 @@ export default function EditarVehiculoPage() {
                       {FORMATO_DOP.format(gasto.monto)}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => editarGasto(gasto)}
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                      className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
                     >
                       Editar
                     </button>
@@ -975,7 +1111,7 @@ export default function EditarVehiculoPage() {
                       type="button"
                       onClick={() => void eliminarGastoRecurrente(gasto)}
                       aria-label={`Eliminar ${gasto.nombre}`}
-                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
                     >
                       <Trash2 size={16} />
                       Borrar
@@ -987,61 +1123,80 @@ export default function EditarVehiculoPage() {
           </div>
         </section>
 
-        <section className="mt-8 rounded-xl bg-white p-6 shadow-sm md:p-8">
+        <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-5 flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-              <CalendarClock size={22} />
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-[#D4202C]">
+              <Wrench size={21} />
             </span>
             <div>
-              <h2 className="text-xl font-bold">Últimos mantenimientos</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4202C]">04 · Historial del vehículo</p>
+              <h2 className="mt-0.5 text-xl font-bold text-gray-950">Últimos mantenimientos</h2>
               <p className="mt-1 text-sm text-gray-500">
                 Los cinco registros más recientes de este vehículo.
               </p>
             </div>
           </div>
 
+          {ultimoMantenimiento && (
+            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#D4202C] shadow-sm">
+                  <Gauge size={20} />
+                </span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500">Kilometraje más reciente</p>
+                  <p className="mt-0.5 text-lg font-extrabold text-[#111214]">
+                    {FORMATO_NUMERO.format(ultimoMantenimiento.kilometraje)} km
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600">
+                {ultimoMantenimiento.categoria} · {formatFecha(ultimoMantenimiento.fecha)}
+              </p>
+            </div>
+          )}
+
           {mantenimientosRecientes.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500">
+            <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500">
               No hay mantenimientos registrados para este vehículo.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left text-sm">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Fecha</th>
-                    <th className="px-4 py-3 font-semibold">Categoría</th>
-                    <th className="px-4 py-3 font-semibold">Kilometraje</th>
-                    <th className="px-4 py-3 font-semibold">Gasto</th>
-                    <th className="px-4 py-3 font-semibold">Descripción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {mantenimientosRecientes.map((mantenimiento) => (
-                    <tr key={mantenimiento.id} className="text-gray-700">
-                      <td className="whitespace-nowrap px-4 py-3">
+            <div className="space-y-3">
+              {mantenimientosRecientes.map((mantenimiento) => (
+                <article
+                  key={mantenimiento.id}
+                  className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-bold text-gray-900">
+                        {mantenimiento.categoria}
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-500">
                         {formatFecha(mantenimiento.fecha)}
-                      </td>
-                      <td className="px-4 py-3">{mantenimiento.categoria}</td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {new Intl.NumberFormat("es-DO").format(
-                          mantenimiento.kilometraje
-                        )}{" "}
-                        km
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-semibold">
-                        {FORMATO_DOP.format(mantenimiento.monto)}
-                      </td>
-                      <td className="max-w-xs px-4 py-3">
-                        {mantenimiento.descripcion || "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-bold text-gray-900">
+                      {FORMATO_DOP.format(mantenimiento.monto)}
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-3 text-xs text-gray-600">
+                    <span>
+                      {FORMATO_NUMERO.format(mantenimiento.kilometraje)} km
+                    </span>
+                    {mantenimiento.descripcion && (
+                      <span className="min-w-0 break-words">
+                        {mantenimiento.descripcion}
+                      </span>
+                    )}
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </section>
+        </aside>
+        </div>
       </div>
     </main>
   );
