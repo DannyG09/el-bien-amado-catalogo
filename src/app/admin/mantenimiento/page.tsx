@@ -2,14 +2,18 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
 import {
   ClipboardList,
+  Download,
   Edit2,
+  FileText,
   Gauge,
   LoaderCircle,
+  Paperclip,
   Receipt,
   Wrench,
   X,
@@ -35,6 +39,7 @@ type Mantenimiento = {
   monto: number;
   kilometraje: number;
   descripcion: string | null;
+  tieneFactura: boolean;
 };
 
 type Resumen = {
@@ -122,6 +127,7 @@ async function obtenerDatosMantenimiento(
 }
 
 export default function MantenimientoAdminPage() {
+  const facturaInputRef = useRef<HTMLInputElement>(null);
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [registros, setRegistros] = useState<Mantenimiento[]>([]);
   const [resumen, setResumen] = useState<Resumen>({
@@ -139,6 +145,11 @@ export default function MantenimientoAdminPage() {
   const [monto, setMonto] = useState("");
   const [kilometraje, setKilometraje] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [factura, setFactura] = useState<File | null>(null);
+  const [mesReporte, setMesReporte] = useState(() =>
+    fechaLocalHoy().slice(0, 7)
+  );
+  const [descargandoReporte, setDescargandoReporte] = useState(false);
   const [filtroVehiculo, setFiltroVehiculo] = useState("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("todas");
   const [pagina, setPagina] = useState(1);
@@ -248,17 +259,23 @@ export default function MantenimientoAdminPage() {
     setGuardando(true);
 
     try {
-      const respuesta = await fetch("/api/mantenimientos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const formulario = new FormData();
+      formulario.append(
+        "datos",
+        JSON.stringify({
           vehiculoId: Number(vehiculoId),
           fecha,
           categoria,
           monto: Number(monto),
           kilometraje: Number(kilometraje),
           descripcion,
-        }),
+        })
+      );
+      if (factura) formulario.append("factura", factura);
+
+      const respuesta = await fetch("/api/mantenimientos", {
+        method: "POST",
+        body: formulario,
       });
 
       if (!respuesta.ok) {
@@ -269,6 +286,8 @@ export default function MantenimientoAdminPage() {
       setMonto("");
       setKilometraje("");
       setDescripcion("");
+      setFactura(null);
+      if (facturaInputRef.current) facturaInputRef.current.value = "";
       setMensaje("El mantenimiento se guardó correctamente.");
       setCargando(true);
       await cargarDatos();
@@ -281,6 +300,47 @@ export default function MantenimientoAdminPage() {
       );
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function descargarReporteMensual() {
+    if (!/^\d{4}-\d{2}$/.test(mesReporte)) {
+      setError("Selecciona un mes válido para descargar el reporte.");
+      return;
+    }
+
+    setError("");
+    setDescargandoReporte(true);
+    try {
+      const respuesta = await fetch(
+        `/api/mantenimientos/reporte?mes=${encodeURIComponent(mesReporte)}`,
+        { cache: "no-store" }
+      );
+      if (!respuesta.ok) {
+        const detalle = (await respuesta.json()) as { error?: string };
+        throw new Error(
+          detalle.error ?? "No se pudo generar el reporte mensual."
+        );
+      }
+
+      const archivo = await respuesta.blob();
+      const url = URL.createObjectURL(archivo);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = `gastos-${mesReporte}.pdf`;
+      document.body.append(enlace);
+      enlace.click();
+      enlace.remove();
+      URL.revokeObjectURL(url);
+    } catch (errorReporte) {
+      console.error("Error al descargar el reporte mensual:", errorReporte);
+      setError(
+        errorReporte instanceof Error
+          ? errorReporte.message
+          : "No se pudo descargar el reporte mensual."
+      );
+    } finally {
+      setDescargandoReporte(false);
     }
   }
 
@@ -335,7 +395,7 @@ export default function MantenimientoAdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100">
+    <main className="admin-page min-h-screen bg-gray-100">
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
         <AdminPageHeader
           title="Mantenimiento"
@@ -571,7 +631,47 @@ export default function MantenimientoAdminPage() {
                 />
               </label>
 
-              <div className="sm:col-span-2 xl:col-span-3">
+              <label className="text-sm font-semibold text-gray-700 sm:col-span-2 xl:col-span-2">
+                Factura (opcional)
+                <span className="mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
+                  <Paperclip size={17} className="text-gray-500" />
+                  <input
+                    id="factura-mantenimiento"
+                    ref={facturaInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(evento) => {
+                      const archivo = evento.target.files?.[0] ?? null;
+                      if (
+                        archivo &&
+                        !["image/jpeg", "image/png", "image/webp"].includes(
+                          archivo.type
+                        )
+                      ) {
+                        setError("La factura debe ser JPG, PNG o WEBP.");
+                        evento.target.value = "";
+                        setFactura(null);
+                        return;
+                      }
+                      if (archivo && archivo.size > 5 * 1024 * 1024) {
+                        setError("La factura no puede superar los 5 MB.");
+                        evento.target.value = "";
+                        setFactura(null);
+                        return;
+                      }
+                      setError("");
+                      setFactura(archivo);
+                    }}
+                    className="min-w-0 flex-1 text-xs font-normal file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-[#D4202C]"
+                  />
+                  <span className="w-full text-xs font-normal text-gray-500">
+                    Imagen JPG, PNG o WEBP, máximo 5 MB. Puedes dejarlo vacío.
+                    {factura ? ` Seleccionada: ${factura.name}` : ""}
+                  </span>
+                </span>
+              </label>
+
+              <div className="flex items-end sm:col-span-2 xl:col-span-1">
                 <button
                   type="submit"
                   disabled={guardando || cargando || vehiculos.length === 0}
@@ -595,7 +695,7 @@ export default function MantenimientoAdminPage() {
                 El resumen superior muestra los totales de toda la flota.
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <label className="text-xs font-semibold text-gray-500">
                 Vehículo
                 <select
@@ -630,6 +730,36 @@ export default function MantenimientoAdminPage() {
                   ))}
                 </select>
               </label>
+              <div className="flex items-end gap-2 sm:col-span-2 xl:col-span-1">
+                <label
+                  htmlFor="mes-reporte-gastos"
+                  className="min-w-0 flex-1 text-xs font-semibold text-gray-500"
+                >
+                  Descargar PDF del mes
+                  <input
+                    id="mes-reporte-gastos"
+                    type="month"
+                    required
+                    value={mesReporte}
+                    onChange={(evento) => setMesReporte(evento.target.value)}
+                    className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-normal text-gray-800"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void descargarReporteMensual()}
+                  disabled={descargandoReporte || !mesReporte}
+                  aria-label="Descargar reporte mensual en PDF"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#D4202C] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#b81b26] disabled:cursor-wait disabled:opacity-60"
+                >
+                  {descargandoReporte ? (
+                    <LoaderCircle size={16} className="animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                  PDF
+                </button>
+              </div>
             </div>
           </div>
 
@@ -652,6 +782,7 @@ export default function MantenimientoAdminPage() {
                     <th className="px-5 py-3 font-semibold">Kilometraje</th>
                     <th className="px-5 py-3 font-semibold">Monto</th>
                     <th className="px-5 py-3 font-semibold">Descripción</th>
+                    <th className="px-5 py-3 font-semibold">Factura</th>
                     <th className="px-5 py-3 font-semibold">Acciones</th>
                   </tr>
                 </thead>
@@ -680,6 +811,21 @@ export default function MantenimientoAdminPage() {
                       </td>
                       <td className="max-w-xs px-5 py-4">
                         {registro.descripcion || "—"}
+                      </td>
+                      <td className="px-5 py-4">
+                        {registro.tieneFactura ? (
+                          <a
+                            href={`/api/mantenimientos/${registro.id}/factura`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-[#D4202C]/30 hover:bg-red-50 hover:text-[#D4202C]"
+                          >
+                            <FileText size={14} />
+                            Ver factura
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-400">Sin factura</span>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <button

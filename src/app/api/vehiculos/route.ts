@@ -23,7 +23,18 @@ export async function GET() {
         preciodia AS "precioDia",
         imagen,
         descripcion,
-        disponible
+        disponible${
+          autorizado
+            ? `,
+        (
+          SELECT kilometraje
+          FROM public.mantenimientos
+          WHERE vehiculo_id = vehiculos.id
+          ORDER BY fecha DESC, id DESC
+          LIMIT 1
+        ) AS "ultimoKilometraje"`
+            : ""
+        }
       FROM vehiculos
       ORDER BY id DESC
     `);
@@ -36,6 +47,7 @@ export async function GET() {
         descripcion,
         imagen,
         disponible,
+        ultimoKilometraje,
         ...datosVehiculo
       } = vehiculo;
 
@@ -54,6 +66,14 @@ export async function GET() {
           disponible === true ||
           disponible === 1 ||
           disponible === "true",
+        ...(autorizado
+          ? {
+              ultimoKilometraje:
+                ultimoKilometraje == null
+                  ? null
+                  : Number(ultimoKilometraje),
+            }
+          : {}),
       };
     });
 
@@ -107,8 +127,7 @@ export async function POST(request: Request) {
       !marca.trim() ||
       typeof modelo !== "string" ||
       !modelo.trim() ||
-      typeof placa !== "string" ||
-      !placa.trim() ||
+      (placa != null && typeof placa !== "string") ||
       typeof color !== "string" ||
       !color.trim() ||
       typeof tipoSeguro !== "string" ||
@@ -117,7 +136,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Completa correctamente la marca, el modelo, la placa, el color y el tipo de seguro.",
+            "Completa correctamente la marca, el modelo, el color y el tipo de seguro.",
         },
         { status: 400 }
       );
@@ -202,7 +221,7 @@ export async function POST(request: Request) {
         marca.trim(),
         modelo.trim(),
         anioNumero,
-        placa.trim(),
+        typeof placa === "string" ? placa.trim().toUpperCase() : "",
         color.trim(),
         tipoSeguro.trim(),
         precioNumero,

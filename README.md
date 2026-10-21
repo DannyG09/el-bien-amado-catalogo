@@ -17,7 +17,10 @@ Catálogo web de vehículos de alquiler para **El Bien Amado Rent A Car**, con p
 - Panel principal con indicadores de la flota y accesos rápidos; navegación y encabezados con un diseño visual unificado.
 - Registro de mantenimiento por vehículo, gastos en DOP, categorías e historial de kilometraje.
 - Historial de mantenimiento con filtros, paginación de 25 registros y edición de registros existentes.
+- Adjuntar facturas opcionales a los mantenimientos; se guardan como imágenes privadas en Cloudinary y solo las puede abrir una sesión administrativa.
+- Descargar un reporte mensual en PDF con los mantenimientos realizados y una sección separada de cargos recurrentes programados.
 - Gastos recurrentes mensuales y anuales por vehículo, con cálculo automático de próxima fecha.
+- Pantalla central de gastos recurrentes conectada a la flota, clasificada por tipo, con contador de días de vigencia, filtros, proyección anual y reporte PDF anual con resumen y desglose mensual.
 - Reordenamiento de fotografías para elegir la portada y consulta de los últimos cinco mantenimientos desde la edición del vehículo.
 - Resumen de gastos históricos, proyección anual de gastos recurrentes y kilometraje más reciente por vehículo.
 - Interfaz de administración simplificada, sin imagen de fondo, y consultas paginadas para reducir la carga del historial.
@@ -31,6 +34,7 @@ Catálogo web de vehículos de alquiler para **El Bien Amado Rent A Car**, con p
 | Estilos | Tailwind CSS 4, lucide-react |
 | Base de datos | PostgreSQL (`pg`) |
 | Imágenes | Cloudinary (`next-cloudinary`) |
+| Reportes PDF | `pdf-lib` |
 
 ## 📋 Requisitos
 
@@ -77,6 +81,8 @@ Ejecuta las migraciones en orden:
 
 1. [`database/migrations/001_mantenimientos.sql`](./database/migrations/001_mantenimientos.sql) habilita el historial de mantenimiento.
 2. [`database/migrations/002_gastos_recurrentes.sql`](./database/migrations/002_gastos_recurrentes.sql) habilita los gastos recurrentes.
+3. [`database/migrations/003_facturas_mantenimientos.sql`](./database/migrations/003_facturas_mantenimientos.sql) añade referencias opcionales a facturas privadas para los mantenimientos existentes.
+4. [`database/migrations/004_categorias_gastos_recurrentes.sql`](./database/migrations/004_categorias_gastos_recurrentes.sql) clasifica los gastos recurrentes existentes y añade tipos de gasto.
 
 Los gastos de mantenimiento y recurrentes se registran en pesos dominicanos (DOP).
 La proyección anual convierte cada gasto mensual a doce meses y presenta los gastos
@@ -101,8 +107,9 @@ src/app/
 ├── login/                   # Acceso de administrador
 ├── admin/                   # Panel, vehículos y mantenimiento
 ├── api/
+│   ├── gastos-recurrentes/  # Gestión de flota y reporte anual PDF
 │   ├── vehiculos/           # Vehículos, mantenimientos recientes y gastos recurrentes
-│   ├── mantenimientos/      # Historial, filtros, paginación y edición
+│   ├── mantenimientos/      # Historial, facturas privadas, PDF mensual y edición
 │   ├── vehiculo-fotos/      # Fotos y orden de galería
 │   ├── cloudinary-signature/# Firma para subidas a Cloudinary
 │   └── login/ · logout/     # Sesión de administrador
@@ -122,6 +129,10 @@ public/                      # Logo e imágenes
 | POST | `/api/cloudinary-signature` | Admin |
 | GET / POST | `/api/mantenimientos` | Admin |
 | PUT | `/api/mantenimientos/:id` | Admin |
+| GET | `/api/mantenimientos/:id/factura` | Admin |
+| GET | `/api/mantenimientos/reporte?mes=AAAA-MM` | Admin |
+| GET / POST | `/api/gastos-recurrentes` | Admin |
+| GET | `/api/gastos-recurrentes/reporte?anio=AAAA` | Admin |
 | GET | `/api/vehiculos/:id/mantenimientos` | Admin |
 | GET / POST | `/api/vehiculos/:id/gastos-recurrentes` | Admin |
 | PUT / DELETE | `/api/vehiculos/:id/gastos-recurrentes/:gastoId` | Admin |

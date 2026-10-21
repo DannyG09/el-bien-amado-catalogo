@@ -1,7 +1,26 @@
 export const FRECUENCIAS_GASTO = ["mensual", "anual"] as const;
+export const CATEGORIAS_GASTO = [
+  "seguro",
+  "marbete",
+  "gps",
+  "mantenimiento",
+  "otro",
+] as const;
+
+export const ETIQUETAS_CATEGORIA_GASTO: Record<
+  (typeof CATEGORIAS_GASTO)[number],
+  string
+> = {
+  seguro: "Seguro",
+  marbete: "Marbete",
+  gps: "GPS",
+  mantenimiento: "Mantenimiento",
+  otro: "Otro",
+};
 
 export type DatosGastoRecurrente = {
   nombre: string;
+  categoria: (typeof CATEGORIAS_GASTO)[number];
   frecuencia: (typeof FRECUENCIAS_GASTO)[number];
   fechaInicio: string;
   monto: number;
@@ -31,6 +50,10 @@ export function validarGastoRecurrente(
   const datos = entrada as Record<string, unknown>;
   const nombre =
     typeof datos.nombre === "string" ? datos.nombre.trim() : "";
+  const categoria =
+    typeof datos.categoria === "string"
+      ? datos.categoria
+      : inferirCategoriaGasto(nombre);
   const frecuencia = datos.frecuencia;
   const fechaInicio = datos.fechaInicio;
   const monto = typeof datos.monto === "number" ? datos.monto : Number.NaN;
@@ -40,6 +63,14 @@ export function validarGastoRecurrente(
       valido: false,
       error: "El nombre debe tener entre 1 y 120 caracteres.",
     };
+  }
+  if (
+    typeof categoria !== "string" ||
+    !CATEGORIAS_GASTO.includes(
+      categoria as (typeof CATEGORIAS_GASTO)[number]
+    )
+  ) {
+    return { valido: false, error: "Selecciona un tipo de gasto válido." };
   }
   if (
     typeof frecuencia !== "string" ||
@@ -69,11 +100,49 @@ export function validarGastoRecurrente(
     valido: true,
     datos: {
       nombre,
+      categoria: categoria as DatosGastoRecurrente["categoria"],
       frecuencia: frecuencia as DatosGastoRecurrente["frecuencia"],
       fechaInicio,
       monto,
     },
   };
+}
+
+export function inferirCategoriaGasto(nombre: string) {
+  const nombreNormalizado = nombre.trim().toLocaleLowerCase("es");
+  if (nombreNormalizado.includes("seguro")) return "seguro";
+  if (nombreNormalizado.includes("marbete")) return "marbete";
+  if (nombreNormalizado.includes("gps")) return "gps";
+  if (
+    nombreNormalizado.includes("mantenimiento") ||
+    nombreNormalizado.includes("aceite") ||
+    nombreNormalizado.includes("goma") ||
+    nombreNormalizado.includes("filtro")
+  ) {
+    return "mantenimiento";
+  }
+  return "otro";
+}
+
+export function calcularDiasVigencia(
+  fechaProxima: string,
+  hoy = fechaLocalActual()
+) {
+  const [anioProximo, mesProximo, diaProximo] = fechaProxima
+    .split("-")
+    .map(Number);
+  const [anioHoy, mesHoy, diaHoy] = hoy.split("-").map(Number);
+  const proxima = Date.UTC(anioProximo, mesProximo - 1, diaProximo);
+  const fechaActual = Date.UTC(anioHoy, mesHoy - 1, diaHoy);
+  return Math.round((proxima - fechaActual) / 86_400_000);
+}
+
+function fechaLocalActual() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(hoy.getDate()).padStart(2, "0")}`;
 }
 
 function fechaEnPeriodo(

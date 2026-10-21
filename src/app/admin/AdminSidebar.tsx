@@ -11,6 +11,7 @@ import {
   UsersRound,
   ArrowUpRight,
   Wrench,
+  WalletCards,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -42,6 +43,12 @@ const NAV_ITEMS = [
     label: "Mantenimiento",
     href: "/admin/mantenimiento",
     icon: Wrench,
+    available: true,
+  },
+  {
+    label: "Gastos recurrentes",
+    href: "/admin/gastos-recurrentes",
+    icon: WalletCards,
     available: true,
   },
 ];

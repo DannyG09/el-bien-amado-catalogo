@@ -3,6 +3,7 @@ import { getConnection } from "../../../../lib/db";
 import { isAdminAuthenticated } from "../../../../lib/auth";
 import {
   calcularFechaProxima,
+  CATEGORIAS_GASTO,
   validarGastoRecurrente,
   type GastoRecurrente,
 } from "../../../../lib/gastos-recurrentes";
@@ -27,6 +28,13 @@ function normalizarGasto(fila: Record<string, unknown>): GastoRecurrente {
     id: Number(fila.id),
     vehiculoId: Number(fila.vehiculoId),
     nombre: String(fila.nombre),
+    categoria:
+      typeof fila.categoria === "string" &&
+      CATEGORIAS_GASTO.includes(
+        fila.categoria as (typeof CATEGORIAS_GASTO)[number]
+      )
+        ? (fila.categoria as GastoRecurrente["categoria"])
+        : "otro",
     frecuencia,
     fechaInicio,
     fechaProxima: calcularFechaProxima(fechaInicio, frecuencia),
@@ -58,6 +66,7 @@ export async function GET(_request: Request, { params }: Params) {
          id,
          vehiculo_id AS "vehiculoId",
          nombre,
+         categoria,
          frecuencia,
          fecha_inicio::text AS "fechaInicio",
          monto
@@ -121,20 +130,22 @@ export async function POST(request: Request, { params }: Params) {
     const pool = await getConnection();
     const resultado = await pool.query(
       `INSERT INTO public.vehiculo_gastos_recurrentes
-         (vehiculo_id, nombre, frecuencia, fecha_inicio, monto)
-       SELECT id, $2, $3, $4, $5
+         (vehiculo_id, nombre, categoria, frecuencia, fecha_inicio, monto)
+       SELECT id, $2, $3, $4, $5, $6
        FROM public.vehiculos
        WHERE id = $1
        RETURNING
          id,
          vehiculo_id AS "vehiculoId",
          nombre,
+         categoria,
          frecuencia,
          fecha_inicio::text AS "fechaInicio",
          monto`,
       [
         vehiculoId,
         validacion.datos.nombre,
+        validacion.datos.categoria,
         validacion.datos.frecuencia,
         validacion.datos.fechaInicio,
         validacion.datos.monto,

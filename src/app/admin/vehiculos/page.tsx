@@ -2,6 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Gauge,
+  LockKeyhole,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import AdminPageHeader from "../AdminPageHeader";
 
 /*
@@ -21,6 +33,7 @@ type Vehiculo = {
   imagen: string | null;
   descripcion: string | null;
   disponible: boolean;
+  ultimoKilometraje: number | null;
 };
 
 type Filtro = "todos" | "disponibles" | "no-disponibles";
@@ -41,6 +54,7 @@ const OPCIONES_ORDEN: { id: Orden; label: string }[] = [
   { id: "anio-asc", label: "Año: más antiguo primero" },
   { id: "marca-asc", label: "Marca: A-Z" },
 ];
+const FORMATO_NUMERO = new Intl.NumberFormat("es-DO");
 
 export default function VehiculosAdminPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
@@ -52,6 +66,19 @@ export default function VehiculosAdminPage() {
   const [marcaFiltro, setMarcaFiltro] = useState("todas");
   const [precioMin, setPrecioMin] = useState("");
   const [precioMax, setPrecioMax] = useState("");
+  const [vehiculoPendienteEliminar, setVehiculoPendienteEliminar] =
+    useState<Vehiculo | null>(null);
+  const [passwordEliminar, setPasswordEliminar] = useState("");
+  const [errorEliminar, setErrorEliminar] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+  const [vehiculoPendienteDisponibilidad, setVehiculoPendienteDisponibilidad] =
+    useState<Vehiculo | null>(null);
+  const [errorDisponibilidad, setErrorDisponibilidad] = useState("");
+  const [actualizandoDisponibilidad, setActualizandoDisponibilidad] =
+    useState<number | null>(null);
+  const [vehiculosExpandidos, setVehiculosExpandidos] = useState<Set<number>>(
+    () => new Set()
+  );
 
   useEffect(() => {
     let cancelado = false;
@@ -83,18 +110,118 @@ export default function VehiculosAdminPage() {
     };
   }, []);
 
-  async function eliminarVehiculo(id: number) {
-    if (!window.confirm("¿Seguro que deseas eliminar este vehículo?")) return;
+  function cancelarEliminacion() {
+    if (eliminando) return;
+    setVehiculoPendienteEliminar(null);
+    setPasswordEliminar("");
+    setErrorEliminar("");
+  }
 
+  async function eliminarVehiculo(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (!vehiculoPendienteEliminar || eliminando) return;
+
+    setEliminando(true);
+    setErrorEliminar("");
     try {
-      const respuesta = await fetch(`/api/vehiculos/${id}`, { method: "DELETE" });
-      if (!respuesta.ok) throw new Error("No se pudo eliminar el vehículo");
+      const respuesta = await fetch(
+        `/api/vehiculos/${vehiculoPendienteEliminar.id}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: passwordEliminar }),
+        }
+      );
+      const resultado = (await respuesta.json()) as { error?: string };
+      if (!respuesta.ok) {
+        throw new Error(resultado.error ?? "No se pudo eliminar el vehículo.");
+      }
 
-      setVehiculos((actuales) => actuales.filter((v) => v.id !== id));
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo eliminar el vehículo.");
+      setVehiculos((actuales) =>
+        actuales.filter((vehiculo) => vehiculo.id !== vehiculoPendienteEliminar.id)
+      );
+      setVehiculoPendienteEliminar(null);
+      setPasswordEliminar("");
+    } catch (errorEliminacion) {
+      console.error("Error al eliminar el vehículo:", errorEliminacion);
+      setErrorEliminar(
+        errorEliminacion instanceof Error
+          ? errorEliminacion.message
+          : "No se pudo eliminar el vehículo."
+      );
+    } finally {
+      setEliminando(false);
     }
+  }
+
+  async function cambiarDisponibilidad(
+    vehiculo: Vehiculo,
+    disponible: boolean
+  ) {
+    if (actualizandoDisponibilidad !== null) return;
+
+    setActualizandoDisponibilidad(vehiculo.id);
+    setErrorDisponibilidad("");
+    setError("");
+    try {
+      const respuesta = await fetch(`/api/vehiculos/${vehiculo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disponible }),
+      });
+      const resultado = (await respuesta.json()) as {
+        error?: string;
+        disponible?: boolean;
+      };
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado.error ?? "No se pudo actualizar la disponibilidad."
+        );
+      }
+
+      setVehiculos((actuales) =>
+        actuales.map((actual) =>
+          actual.id === vehiculo.id
+            ? { ...actual, disponible: resultado.disponible ?? disponible }
+            : actual
+        )
+      );
+      setVehiculoPendienteDisponibilidad(null);
+    } catch (errorActualizacion) {
+      console.error("Error al actualizar la disponibilidad:", errorActualizacion);
+      const mensaje =
+        errorActualizacion instanceof Error
+          ? errorActualizacion.message
+          : "No se pudo actualizar la disponibilidad.";
+      if (!disponible) {
+        setErrorDisponibilidad(mensaje);
+      } else {
+        setError(mensaje);
+      }
+    } finally {
+      setActualizandoDisponibilidad(null);
+    }
+  }
+
+  function solicitarCambioDisponibilidad(vehiculo: Vehiculo) {
+    if (vehiculo.disponible) {
+      setVehiculoPendienteDisponibilidad(vehiculo);
+      setErrorDisponibilidad("");
+      return;
+    }
+    void cambiarDisponibilidad(vehiculo, true);
+  }
+
+  function alternarDetallesVehiculo(vehiculoId: number) {
+    setVehiculosExpandidos((actuales) => {
+      const nuevos = new Set(actuales);
+      if (nuevos.has(vehiculoId)) {
+        nuevos.delete(vehiculoId);
+      } else {
+        nuevos.add(vehiculoId);
+      }
+      return nuevos;
+    });
   }
 
   const disponibles = vehiculos.filter((v) => v.disponible).length;
@@ -316,9 +443,9 @@ export default function VehiculosAdminPage() {
 
         {/* CARGANDO */}
         {cargando && (
-          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-[430px] animate-pulse rounded-2xl bg-gray-200" />
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200" />
             ))}
           </div>
         )}
@@ -355,108 +482,357 @@ export default function VehiculosAdminPage() {
 
         {/* LISTA */}
         {!cargando && filtrados.length > 0 && (
-          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-3">
             {filtrados.map((vehiculo) => (
               <article
                 key={vehiculo.id}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#D4202C] hover:shadow-xl"
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:border-gray-300 hover:shadow-md"
               >
-                {/* IMAGEN */}
-                <div className="relative overflow-hidden">
+                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5">
                   {vehiculo.imagen ? (
                     <img
                       src={vehiculo.imagen}
-                      alt={`${vehiculo.marca} ${vehiculo.modelo}`}
-                      className="h-52 w-full object-cover transition duration-500 group-hover:scale-105"
+                      alt=""
+                      aria-hidden="true"
+                      loading="lazy"
+                      className="h-16 w-20 shrink-0 rounded-xl object-cover"
                     />
                   ) : (
-                    <div className="flex h-52 items-center justify-center bg-gray-100 text-6xl">
+                    <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-3xl">
                       🚘
                     </div>
                   )}
 
-                  <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <h3 className="text-base font-extrabold text-gray-900">
+                        {vehiculo.marca} {vehiculo.modelo}
+                      </h3>
+                      <span className="text-xs font-semibold text-gray-500">
+                        {vehiculo.anio}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                          vehiculo.disponible
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {vehiculo.disponible ? "Disponible" : "No disponible"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
+                      <span>
+                        Placa:{" "}
+                        <strong className="font-mono text-gray-800">
+                          {vehiculo.placa || "Pendiente"}
+                        </strong>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Gauge size={14} className="text-gray-400" />
+                        {vehiculo.ultimoKilometraje == null
+                          ? "Sin registro de km"
+                          : `${FORMATO_NUMERO.format(vehiculo.ultimoKilometraje)} km`}
+                      </span>
+                      <span className="font-bold text-gray-900">
+                        USD$ {Number(vehiculo.precioDia).toLocaleString("es-DO")}
+                        <span className="ml-1 font-normal text-gray-500">/ día</span>
+                      </span>
+                    </div>
+                  </div>
 
-                  {/* ESTADO */}
-                  <span
-                    className={
-                      vehiculo.disponible
-                        ? "absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-green-700 shadow"
-                        : "absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-black/85 px-3 py-1.5 text-xs font-bold text-white shadow"
-                    }
-                  >
-                    <span
-                      className={
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={vehiculo.disponible}
+                      aria-label={`${
+                        vehiculo.disponible ? "Ocultar" : "Mostrar"
+                      } ${vehiculo.marca} ${vehiculo.modelo} ${
                         vehiculo.disponible
-                          ? "h-1.5 w-1.5 rounded-full bg-green-500"
-                          : "h-1.5 w-1.5 rounded-full bg-[#D4202C]"
-                      }
-                    />
-                    {vehiculo.disponible ? "Disponible" : "No disponible"}
-                  </span>
-
-                  {/* PRECIO */}
-                  <div className="absolute bottom-0 right-0 rounded-tl-2xl bg-[#D4202C] px-4 py-2.5 text-white">
-                    <p className="text-lg font-extrabold leading-none">
-                      USD$ {Number(vehiculo.precioDia).toLocaleString("es-DO")}
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-red-100">por día</p>
-                  </div>
-                </div>
-
-                {/* INFORMACIÓN */}
-                <div className="flex flex-1 flex-col p-5">
-                  <p className="text-xs font-bold text-gray-400">{vehiculo.anio}</p>
-                  <h3 className="mt-0.5 text-xl font-extrabold text-gray-900">
-                    {vehiculo.marca} {vehiculo.modelo}
-                  </h3>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-xl bg-gray-50 p-2.5">
-                      <p className="text-[10px] uppercase tracking-wide text-gray-400">
-                        Placa
-                      </p>
-                      <p className="mt-1 truncate font-mono text-xs font-bold">
-                        {vehiculo.placa}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-gray-50 p-2.5">
-                      <p className="text-[10px] uppercase tracking-wide text-gray-400">
-                        Color
-                      </p>
-                      <p className="mt-1 truncate text-xs font-bold">{vehiculo.color}</p>
-                    </div>
-                    <div className="rounded-xl bg-gray-50 p-2.5">
-                      <p className="text-[10px] uppercase tracking-wide text-gray-400">
-                        Seguro
-                      </p>
-                      <p className="mt-1 truncate text-xs font-bold">
-                        {vehiculo.tipoSeguro}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* ACCIONES */}
-                  <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
+                          ? "(requiere confirmación)"
+                          : "en el catálogo"
+                      }`}
+                      disabled={actualizandoDisponibilidad === vehiculo.id}
+                      onClick={() => solicitarCambioDisponibilidad(vehiculo)}
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:cursor-wait disabled:opacity-60 ${
+                        vehiculo.disponible
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                          : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      {vehiculo.disponible ? (
+                        <Eye size={15} />
+                      ) : (
+                        <EyeOff size={15} />
+                      )}
+                      {actualizandoDisponibilidad === vehiculo.id
+                        ? "Actualizando..."
+                        : vehiculo.disponible
+                          ? "Visible"
+                          : "Oculto"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-expanded={vehiculosExpandidos.has(vehiculo.id)}
+                      aria-controls={`detalles-vehiculo-${vehiculo.id}`}
+                      onClick={() => alternarDetallesVehiculo(vehiculo.id)}
+                      className="inline-flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50"
+                    >
+                      {vehiculosExpandidos.has(vehiculo.id) ? (
+                        <>
+                          <ChevronUp size={15} />
+                          Menos
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown size={15} />
+                          Más
+                        </>
+                      )}
+                    </button>
                     <Link
                       href={`/admin/vehiculos/${vehiculo.id}/editar`}
-                      className="rounded-lg bg-black py-2.5 text-center text-sm font-bold text-white transition hover:bg-gray-800"
+                      aria-label={`Editar ${vehiculo.marca} ${vehiculo.modelo}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-black px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800"
                     >
-                      ✏️ Editar
+                      <Pencil size={14} />
+                      Editar
                     </Link>
                     <button
-                      onClick={() => eliminarVehiculo(vehiculo.id)}
-                      className="rounded-lg border border-red-200 py-2.5 text-sm font-bold text-[#D4202C] transition hover:bg-[#D4202C] hover:text-white"
+                      type="button"
+                      onClick={() => {
+                        setVehiculoPendienteEliminar(vehiculo);
+                        setPasswordEliminar("");
+                        setErrorEliminar("");
+                      }}
+                      aria-label={`Eliminar ${vehiculo.marca} ${vehiculo.modelo}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-[#D4202C] transition hover:bg-[#D4202C] hover:text-white"
                     >
-                      🗑️ Eliminar
+                      <Trash2 size={14} />
+                      Eliminar
                     </button>
                   </div>
                 </div>
+
+                {vehiculosExpandidos.has(vehiculo.id) && (
+                  <div
+                    id={`detalles-vehiculo-${vehiculo.id}`}
+                    className="grid gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-4 sm:grid-cols-3"
+                  >
+                    <p className="text-sm text-gray-600">
+                      <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Color
+                      </span>
+                      <span className="mt-1 block font-semibold text-gray-800">
+                        {vehiculo.color || "No especificado"}
+                      </span>
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Seguro
+                      </span>
+                      <span className="mt-1 block font-semibold text-gray-800">
+                        {vehiculo.tipoSeguro || "No especificado"}
+                      </span>
+                    </p>
+                    <p className="text-sm text-gray-600 sm:col-span-3">
+                      <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Descripción
+                      </span>
+                      <span className="mt-1 block whitespace-pre-wrap text-gray-700">
+                        {vehiculo.descripcion || "Sin descripción"}
+                      </span>
+                    </p>
+                  </div>
+                )}
               </article>
             ))}
           </div>
         )}
       </section>
+
+      {vehiculoPendienteDisponibilidad && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4"
+          onMouseDown={(evento) => {
+            if (
+              evento.target === evento.currentTarget &&
+              actualizandoDisponibilidad === null
+            ) {
+              setVehiculoPendienteDisponibilidad(null);
+              setErrorDisponibilidad("");
+            }
+          }}
+        >
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-no-disponible-titulo"
+            aria-describedby="confirmar-no-disponible-descripcion"
+            className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <AlertTriangle size={24} />
+            </span>
+            <h2
+              id="confirmar-no-disponible-titulo"
+              className="mt-5 text-2xl font-extrabold text-gray-950"
+            >
+              ¿Ocultar este vehículo?
+            </h2>
+            <p
+              id="confirmar-no-disponible-descripcion"
+              className="mt-2 text-sm leading-6 text-gray-600"
+            >
+              <span className="font-bold text-gray-900">
+                {vehiculoPendienteDisponibilidad.marca}{" "}
+                {vehiculoPendienteDisponibilidad.modelo}
+              </span>{" "}
+              dejará de aparecer como disponible en el catálogo público. Puedes
+              volver a mostrarlo cuando quieras.
+            </p>
+            {errorDisponibilidad && (
+              <p
+                role="alert"
+                className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-800"
+              >
+                {errorDisponibilidad}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={actualizandoDisponibilidad !== null}
+                onClick={() => {
+                  setVehiculoPendienteDisponibilidad(null);
+                  setErrorDisponibilidad("");
+                }}
+                className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={actualizandoDisponibilidad !== null}
+                onClick={() =>
+                  void cambiarDisponibilidad(
+                    vehiculoPendienteDisponibilidad,
+                    false
+                  )
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#b81b26] disabled:cursor-wait disabled:opacity-60"
+              >
+                <EyeOff size={16} />
+                {actualizandoDisponibilidad !== null
+                  ? "Actualizando..."
+                  : "Sí, ocultar vehículo"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {vehiculoPendienteEliminar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4"
+          onMouseDown={(evento) => {
+            if (evento.target === evento.currentTarget) cancelarEliminacion();
+          }}
+        >
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-eliminacion-titulo"
+            aria-describedby="confirmar-eliminacion-descripcion"
+            className="my-auto w-full max-w-md rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-[#D4202C]">
+                <AlertTriangle size={24} />
+              </span>
+              <button
+                type="button"
+                aria-label="Cerrar confirmación"
+                disabled={eliminando}
+                onClick={cancelarEliminacion}
+                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <h2
+              id="confirmar-eliminacion-titulo"
+              className="mt-5 text-2xl font-extrabold text-gray-950"
+            >
+              ¿Eliminar este vehículo?
+            </h2>
+            <p
+              id="confirmar-eliminacion-descripcion"
+              className="mt-2 text-sm leading-6 text-gray-600"
+            >
+              Estás a punto de eliminar{" "}
+              <span className="font-bold text-gray-900">
+                {vehiculoPendienteEliminar.marca} {vehiculoPendienteEliminar.modelo}
+              </span>{" "}
+              ({vehiculoPendienteEliminar.placa}). Esta acción no se puede
+              deshacer. Para continuar, confirma tu contraseña de administrador.
+            </p>
+
+            <form onSubmit={eliminarVehiculo} className="mt-6">
+              <label
+                htmlFor="password-confirmacion-eliminar"
+                className="text-sm font-semibold text-gray-700"
+              >
+                Contraseña de administrador
+                <span className="relative mt-2 block">
+                  <LockKeyhole
+                    size={17}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    id="password-confirmacion-eliminar"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    autoFocus
+                    value={passwordEliminar}
+                    onChange={(evento) => setPasswordEliminar(evento.target.value)}
+                    className="w-full rounded-xl border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-sm font-normal text-gray-900 outline-none transition focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
+                    placeholder="Ingresa tu contraseña"
+                  />
+                </span>
+              </label>
+
+              {errorEliminar && (
+                <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-800">
+                  {errorEliminar}
+                </p>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={eliminando}
+                  onClick={cancelarEliminacion}
+                  className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={eliminando || !passwordEliminar}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#b81b26] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <AlertTriangle size={16} />
+                  {eliminando ? "Eliminando..." : "Sí, eliminar vehículo"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

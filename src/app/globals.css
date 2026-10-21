@@ -84,3 +84,69 @@ body {
 .dark [class~="text-[#D4202C]"] {
   color: #ff6873;
 }
+
+.dark .admin-content .text-gray-950 {
+  color: #f5f7f8;
+}
+
+.dark .admin-content .bg-red-50 {
+  background-color: #3a2226;
+}
+
+.dark .admin-content .bg-green-50,
+.dark .admin-content .bg-emerald-50 {
+  background-color: #1d342b;
+}
+
+.dark .admin-content .bg-amber-50 {
+  background-color: #382f1e;
+}
+
+.dark .admin-content .bg-blue-50 {
+  background-color: #202e42;
+}
+
+.dark .admin-content .bg-indigo-50 {
+  background-color: #2b2740;
+}
+
+.dark .admin-content .bg-violet-50 {
+  background-color: #34263d;
+}
+
+.dark .admin-content .text-red-800,
+.dark .admin-content .text-red-900 {
+  color: #ffb4b9;
+}
+
+.dark .admin-content .text-green-800,
+.dark .admin-content .text-emerald-700 {
+  color: #86efac;
+}
+
+.dark .admin-content .text-amber-700,
+.dark .admin-content .text-amber-900 {
+  color: #fcd77a;
+}
+
+.dark .admin-content .text-blue-700 {
+  color: #93c5fd;
+}
+
+.dark .admin-content .text-indigo-700 {
+  color: #c4b5fd;
+}
+
+.dark .admin-content .text-violet-700 {
+  color: #d8b4fe;
+}
+
+.dark .admin-content .hover\:bg-gray-50:hover {
+  background-color: #283136;
+}
+
+.dark .admin-content input,
+.dark .admin-content select,
+.dark .admin-content textarea {
+  color-scheme: dark;
+}

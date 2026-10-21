@@ -334,14 +334,13 @@ export default function NuevoVehiculoPage() {
               />
             </Campo>
 
-            <Campo label="Placa">
+            <Campo label="Placa (opcional)">
               <input
                 type="text"
                 name="placa"
                 value={formulario.placa}
                 onChange={handleChange}
                 placeholder="Ej. G123456"
-                required
                 className={`${inputClase} uppercase`}
               />
             </Campo>

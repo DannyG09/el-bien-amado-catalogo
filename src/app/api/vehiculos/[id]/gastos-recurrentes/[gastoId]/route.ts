@@ -59,14 +59,16 @@ export async function PUT(request: Request, { params }: Params) {
       `UPDATE public.vehiculo_gastos_recurrentes
        SET
          nombre = $3,
-         frecuencia = $4,
-         fecha_inicio = $5,
-         monto = $6
+         categoria = $4,
+         frecuencia = $5,
+         fecha_inicio = $6,
+         monto = $7
        WHERE id = $1 AND vehiculo_id = $2
        RETURNING
          id,
          vehiculo_id AS "vehiculoId",
          nombre,
+         categoria,
          frecuencia,
          fecha_inicio::text AS "fechaInicio",
          monto`,
@@ -74,6 +76,7 @@ export async function PUT(request: Request, { params }: Params) {
         gastoRecurrenteId,
         vehiculoId,
         validacion.datos.nombre,
+        validacion.datos.categoria,
         validacion.datos.frecuencia,
         validacion.datos.fechaInicio,
         validacion.datos.monto,
@@ -94,6 +97,7 @@ export async function PUT(request: Request, { params }: Params) {
       id: Number(fila.id),
       vehiculoId: Number(fila.vehiculoId),
       nombre: String(fila.nombre),
+      categoria: String(fila.categoria),
       frecuencia,
       fechaInicio,
       fechaProxima: calcularFechaProxima(fechaInicio, frecuencia),

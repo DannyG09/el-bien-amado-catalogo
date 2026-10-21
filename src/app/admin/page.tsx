@@ -198,7 +198,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <main className="min-h-screen">
+    <main className="admin-page min-h-screen">
       <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8 sm:py-10">
         <AdminPageHeader
           title="Panel general"

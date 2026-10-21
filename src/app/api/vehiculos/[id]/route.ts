@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getConnection } from "../../../lib/db";
 import { isAdminAuthenticated } from "../../../lib/auth";
@@ -189,12 +190,12 @@ export async function PUT(
   }
 }
 
-// DELETE /api/vehiculos/:id
-export async function DELETE(
+// PATCH /api/vehiculos/:id
+export async function PATCH(
   request: Request,
   { params }: Params
 ) {
-    try {
+  try {
     const authenticated = await isAdminAuthenticated();
 
     if (!authenticated) {
@@ -205,6 +206,130 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const vehiculoId = Number(id);
+    if (!Number.isSafeInteger(vehiculoId) || vehiculoId <= 0) {
+      return NextResponse.json(
+        { error: "El identificador del vehículo no es válido." },
+        { status: 400 }
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "La solicitud no contiene datos válidos." },
+        { status: 400 }
+      );
+    }
+
+    const disponible =
+      typeof body === "object" && body !== null && "disponible" in body
+        ? body.disponible
+        : undefined;
+    if (typeof disponible !== "boolean") {
+      return NextResponse.json(
+        { error: "El estado de disponibilidad no es válido." },
+        { status: 400 }
+      );
+    }
+
+    const pool = await getConnection();
+    const result = await pool.query(
+      `UPDATE vehiculos
+       SET disponible = $1
+       WHERE id = $2
+       RETURNING disponible`,
+      [disponible, vehiculoId]
+    );
+
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Vehículo no encontrado." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      mensaje: "Disponibilidad actualizada correctamente.",
+      disponible: result.rows[0].disponible === true,
+    });
+  } catch (error) {
+    console.error("Error al actualizar la disponibilidad del vehículo:", error);
+    return NextResponse.json(
+      { error: "No se pudo actualizar la disponibilidad del vehículo." },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/vehiculos/:id
+export async function DELETE(
+  request: Request,
+  { params }: Params
+) {
+  try {
+    const authenticated = await isAdminAuthenticated();
+
+    if (!authenticated) {
+      return NextResponse.json(
+        { error: "No autorizado. Debes iniciar sesión como administrador." },
+        { status: 401 }
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Debes confirmar tu contraseña de administrador." },
+        { status: 400 }
+      );
+    }
+
+    const password =
+      typeof body === "object" && body !== null && "password" in body
+        ? body.password
+        : undefined;
+    if (typeof password !== "string" || !password) {
+      return NextResponse.json(
+        { error: "Debes introducir tu contraseña de administrador." },
+        { status: 400 }
+      );
+    }
+
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminPassword) {
+      console.error("Falta configurar la contraseña del administrador.");
+      return NextResponse.json(
+        { error: "La verificación de administrador no está disponible." },
+        { status: 500 }
+      );
+    }
+
+    const passwordBuffer = Buffer.from(password, "utf8");
+    const adminPasswordBuffer = Buffer.from(adminPassword, "utf8");
+    const passwordValida =
+      passwordBuffer.length === adminPasswordBuffer.length &&
+      timingSafeEqual(passwordBuffer, adminPasswordBuffer);
+
+    if (!passwordValida) {
+      return NextResponse.json(
+        { error: "La contraseña de administrador es incorrecta." },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const vehiculoId = Number(id);
+    if (!Number.isSafeInteger(vehiculoId) || vehiculoId <= 0) {
+      return NextResponse.json(
+        { error: "El identificador del vehículo no es válido." },
+        { status: 400 }
+      );
+    }
 
     const pool = await getConnection();
 
@@ -214,7 +339,7 @@ export async function DELETE(
       WHERE id = $1
       RETURNING id
       `,
-      [Number(id)]
+      [vehiculoId]
     );
 
     if (result.rows.length === 0) {

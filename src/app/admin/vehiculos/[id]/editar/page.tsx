@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { subirFotoCloudinary } from "../../../../lib/uploadCloudinary";
 import {
+  CATEGORIAS_GASTO,
+  ETIQUETAS_CATEGORIA_GASTO,
   FRECUENCIAS_GASTO,
   type GastoRecurrente,
 } from "../../../../lib/gastos-recurrentes";
@@ -107,6 +109,8 @@ export default function EditarVehiculoPage() {
     MantenimientoReciente[]
   >([]);
   const [nombreGasto, setNombreGasto] = useState("");
+  const [categoriaGasto, setCategoriaGasto] =
+    useState<(typeof CATEGORIAS_GASTO)[number]>("otro");
   const [frecuenciaGasto, setFrecuenciaGasto] =
     useState<(typeof FRECUENCIAS_GASTO)[number]>("anual");
   const [fechaInicioGasto, setFechaInicioGasto] = useState(fechaLocalHoy);
@@ -328,6 +332,7 @@ export default function EditarVehiculoPage() {
 
   function limpiarFormularioGasto() {
     setNombreGasto("");
+    setCategoriaGasto("otro");
     setFrecuenciaGasto("anual");
     setFechaInicioGasto(fechaLocalHoy());
     setMontoGasto("");
@@ -337,6 +342,7 @@ export default function EditarVehiculoPage() {
   function editarGasto(gasto: GastoRecurrente) {
     setGastoEditandoId(gasto.id);
     setNombreGasto(gasto.nombre);
+    setCategoriaGasto(gasto.categoria);
     setFrecuenciaGasto(gasto.frecuencia);
     setFechaInicioGasto(gasto.fechaInicio);
     setMontoGasto(String(gasto.monto));
@@ -361,6 +367,7 @@ export default function EditarVehiculoPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             nombre: nombreGasto,
+            categoria: categoriaGasto,
             frecuencia: frecuenciaGasto,
             fechaInicio: fechaInicioGasto,
             monto: Number(montoGasto),
@@ -732,7 +739,7 @@ export default function EditarVehiculoPage() {
                 { label: "Marca", name: "marca", type: "text" },
                 { label: "Modelo", name: "modelo", type: "text" },
                 { label: "Año", name: "anio", type: "number" },
-                { label: "Placa", name: "placa", type: "text" },
+                { label: "Placa (opcional)", name: "placa", type: "text" },
                 { label: "Color", name: "color", type: "text" },
                 { label: "Precio por día (USD)", name: "precioDia", type: "number" },
               ].map((campo) => (
@@ -746,7 +753,7 @@ export default function EditarVehiculoPage() {
                     name={campo.name}
                     value={vehiculo[campo.name as keyof Vehiculo] as string | number}
                     onChange={cambiarCampo}
-                    required
+                    required={campo.name !== "placa"}
                     min={campo.type === "number" ? 0 : undefined}
                     step={campo.name === "precioDia" ? "0.01" : undefined}
                     className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
@@ -1007,6 +1014,25 @@ export default function EditarVehiculoPage() {
             </label>
 
             <label className="text-xs font-bold uppercase tracking-wide text-gray-600">
+              Tipo de gasto
+              <select
+                value={categoriaGasto}
+                onChange={(evento) =>
+                  setCategoriaGasto(
+                    evento.target.value as (typeof CATEGORIAS_GASTO)[number]
+                  )
+                }
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal outline-none focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
+              >
+                <option value="seguro">Seguro</option>
+                <option value="marbete">Marbete</option>
+                <option value="gps">GPS</option>
+                <option value="mantenimiento">Mantenimiento</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
+
+            <label className="text-xs font-bold uppercase tracking-wide text-gray-600">
               Frecuencia
               <select
                 value={frecuenciaGasto}
@@ -1089,7 +1115,8 @@ export default function EditarVehiculoPage() {
                   <div>
                     <h3 className="font-bold text-gray-900">{gasto.nombre}</h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      Cada {gasto.frecuencia === "anual" ? "año" : "mes"} desde{" "}
+                      {ETIQUETAS_CATEGORIA_GASTO[gasto.categoria]} · Cada{" "}
+                      {gasto.frecuencia === "anual" ? "año" : "mes"} desde{" "}
                       {formatFecha(gasto.fechaInicio)}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[#D4202C]">

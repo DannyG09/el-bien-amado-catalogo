@@ -5,6 +5,11 @@ import {
   CATEGORIAS_MANTENIMIENTO,
   validarDatosMantenimiento,
 } from "../../lib/mantenimientos";
+import {
+  eliminarFacturaMantenimiento,
+  subirFacturaMantenimiento,
+  validarFactura,
+} from "../../lib/facturas-mantenimiento";
 
 export const runtime = "nodejs";
 
@@ -18,6 +23,7 @@ type RegistroMantenimiento = {
   monto: number;
   kilometraje: number;
   descripcion: string | null;
+  tieneFactura: boolean;
 };
 
 type ResumenVehiculoGasto = {
@@ -108,7 +114,8 @@ export async function GET(request: Request) {
           m.categoria,
           m.monto,
           m.kilometraje,
-          m.descripcion
+          m.descripcion,
+          m.factura_public_id IS NOT NULL AS "tieneFactura"
         FROM public.mantenimientos AS m
         INNER JOIN public.vehiculos AS v ON v.id = m.vehiculo_id
         ${where}
@@ -213,6 +220,7 @@ export async function GET(request: Request) {
         kilometraje: Number(fila.kilometraje),
         descripcion:
           typeof fila.descripcion === "string" ? fila.descripcion : null,
+        tieneFactura: fila.tieneFactura === true,
       })
     );
 
@@ -286,11 +294,28 @@ export async function POST(request: Request) {
     }
 
     let body: unknown;
+    let factura: File | null = null;
     try {
-      body = await request.json();
+      if (request.headers.get("content-type")?.includes("multipart/form-data")) {
+        const formData = await request.formData();
+        const datos = formData.get("datos");
+        if (typeof datos !== "string") {
+          return NextResponse.json(
+            { error: "Faltan los datos del mantenimiento." },
+            { status: 400 }
+          );
+        }
+        body = JSON.parse(datos);
+        const archivo = formData.get("factura");
+        if (archivo !== null && typeof archivo !== "string") {
+          factura = archivo;
+        }
+      } else {
+        body = await request.json();
+      }
     } catch {
       return NextResponse.json(
-        { error: "El cuerpo de la solicitud no contiene JSON válido." },
+        { error: "El cuerpo de la solicitud no contiene datos válidos." },
         { status: 400 }
       );
     }
@@ -304,54 +329,105 @@ export async function POST(request: Request) {
     }
     const datos = validacion.datos;
 
-    const pool = await getConnection();
-    const resultado = await pool.query(
-      `INSERT INTO public.mantenimientos (
-         vehiculo_id,
-         fecha,
-         categoria,
-         monto,
-         kilometraje,
-         descripcion
-       )
-       SELECT id, $2, $3, $4, $5, $6
-       FROM public.vehiculos
-       WHERE id = $1
-       RETURNING
-         id,
-         vehiculo_id AS "vehiculoId",
-         fecha::text AS fecha,
-         categoria,
-         monto,
-         kilometraje,
-         descripcion`,
-      [
-        datos.vehiculoId,
-        datos.fecha,
-        datos.categoria,
-        datos.monto,
-        datos.kilometraje,
-        datos.descripcion,
-      ]
-    );
+    let facturaSubida: {
+      publicId: string;
+      formato: string;
+      version: number;
+    } | null = null;
+    if (factura) {
+      if (
+        !["image/jpeg", "image/png", "image/webp"].includes(factura.type) ||
+        factura.size > 5 * 1024 * 1024
+      ) {
+        return NextResponse.json(
+          { error: "La factura debe ser JPG, PNG o WEBP y no superar 5 MB." },
+          { status: 400 }
+        );
+      }
 
-    if (resultado.rows.length === 0) {
-      return NextResponse.json(
-        { error: "El vehículo seleccionado no existe." },
-        { status: 404 }
-      );
+      const bytes = Buffer.from(await factura.arrayBuffer());
+      if (!validarFactura(factura.type, bytes)) {
+        return NextResponse.json(
+          { error: "El archivo de factura no es una imagen válida." },
+          { status: 400 }
+        );
+      }
+      facturaSubida = await subirFacturaMantenimiento(bytes);
     }
 
-    return NextResponse.json(
-      {
-        ...resultado.rows[0],
-        id: Number(resultado.rows[0].id),
-        vehiculoId: Number(resultado.rows[0].vehiculoId),
-        monto: Number(resultado.rows[0].monto),
-        kilometraje: Number(resultado.rows[0].kilometraje),
-      },
-      { status: 201 }
-    );
+    try {
+      const pool = await getConnection();
+      const resultado = await pool.query(
+        `INSERT INTO public.mantenimientos (
+           vehiculo_id,
+           fecha,
+           categoria,
+           monto,
+           kilometraje,
+           descripcion,
+           factura_public_id,
+           factura_formato,
+           factura_version
+         )
+         SELECT id, $2, $3, $4, $5, $6, $7, $8, $9
+         FROM public.vehiculos
+         WHERE id = $1
+         RETURNING
+           id,
+           vehiculo_id AS "vehiculoId",
+           fecha::text AS fecha,
+           categoria,
+           monto,
+           kilometraje,
+           descripcion,
+           factura_public_id IS NOT NULL AS "tieneFactura"`,
+        [
+          datos.vehiculoId,
+          datos.fecha,
+          datos.categoria,
+          datos.monto,
+          datos.kilometraje,
+          datos.descripcion,
+          facturaSubida?.publicId ?? null,
+          facturaSubida?.formato ?? null,
+          facturaSubida?.version ?? null,
+        ]
+      );
+
+      if (resultado.rows.length === 0) {
+        if (facturaSubida) {
+          await eliminarFacturaMantenimiento(facturaSubida.publicId);
+        }
+        return NextResponse.json(
+          { error: "El vehículo seleccionado no existe." },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          ...resultado.rows[0],
+          id: Number(resultado.rows[0].id),
+          vehiculoId: Number(resultado.rows[0].vehiculoId),
+          monto: Number(resultado.rows[0].monto),
+          kilometraje: Number(resultado.rows[0].kilometraje),
+          tieneFactura: resultado.rows[0].tieneFactura === true,
+        },
+        { status: 201 }
+      );
+    } catch (error) {
+      if (facturaSubida) {
+        try {
+          await eliminarFacturaMantenimiento(facturaSubida.publicId);
+        } catch (errorLimpieza) {
+          console.error(
+            "No se pudo eliminar la factura huérfana de Cloudinary:",
+            errorLimpieza
+          );
+        }
+      }
+      throw error;
+    }
   } catch (error) {
     console.error("Error al guardar mantenimiento:", error);
 
