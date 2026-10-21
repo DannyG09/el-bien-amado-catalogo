@@ -683,7 +683,7 @@ export default function Home() {
                     <div className="mt-6 grid grid-cols-2 gap-3">
                       <a
                         href={`/vehiculos/${vehiculo.id}`}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-black px-2 py-3.5 text-sm font-bold text-black transition hover:bg-black hover:text-white"
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-black px-2 py-3.5 text-sm font-bold text-black transition hover:bg-black hover:text-white dark:border-gray-300 dark:text-gray-100 dark:hover:bg-gray-100 dark:hover:text-gray-900"
                       >
                         Ver detalles
                         <ArrowRight size={17} />

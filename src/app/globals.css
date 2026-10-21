@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #171c1f;
+  --foreground: #f5f7f8;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -12,15 +21,56 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.dark .bg-white {
+  background-color: #111619;
+}
+
+.dark .bg-gray-50 {
+  background-color: #202629;
+}
+
+.dark .bg-gray-100 {
+  background-color: #283136;
+}
+
+.dark .bg-gray-200 {
+  background-color: #39464d;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800 {
+  color: #f5f7f8;
+}
+
+.dark .text-gray-700 {
+  color: #e4eaed;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: #c4cfd4;
+}
+
+.dark .text-gray-400 {
+  color: #a6b3b9;
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #374151;
+}
+
+.dark input::placeholder {
+  color: #a6b3b9;
+}
+
+.dark [class~="text-[#D4202C]"] {
+  color: #ff6873;
 }

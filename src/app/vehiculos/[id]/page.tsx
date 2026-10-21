@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,6 +13,7 @@ import {
   Images,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 
 type Vehiculo = {
@@ -38,7 +38,6 @@ type Foto = {
 
 const WHATSAPP_NUMERO = "18299212615";
 
-// Separar las características por comas, punto y coma o saltos de línea.
 function obtenerCaracteristicas(
   descripcion: string | null
 ): string[] {
@@ -57,6 +56,7 @@ export default function DetalleVehiculoPage() {
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [fotoSeleccionada, setFotoSeleccionada] = useState(0);
+  const [visorAbierto, setVisorAbierto] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
@@ -113,7 +113,6 @@ export default function DetalleVehiculoPage() {
 
         setVehiculo(normalizado);
 
-        // Cargar las fotografías adicionales guardadas en la base de datos.
         const respuestaFotos = await fetch(
           `/api/vehiculo-fotos?vehiculoId=${encodeURIComponent(id)}`
         );
@@ -139,7 +138,6 @@ export default function DetalleVehiculoPage() {
           }
         }
 
-        // Incluir la imagen principal si todavía no está en la galería.
         const todasLasFotos = [...fotosAdicionales];
 
         if (
@@ -188,6 +186,33 @@ export default function DetalleVehiculoPage() {
     });
   }
 
+  // Teclado: Escape cierra y las flechas cambian de foto.
+  useEffect(() => {
+    if (!visorAbierto) return;
+
+    function manejarTeclado(evento: KeyboardEvent) {
+      if (evento.key === "Escape") {
+        setVisorAbierto(false);
+      }
+
+      if (evento.key === "ArrowRight") {
+        cambiarFoto(1);
+      }
+
+      if (evento.key === "ArrowLeft") {
+        cambiarFoto(-1);
+      }
+    }
+
+    document.addEventListener("keydown", manejarTeclado);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", manejarTeclado);
+      document.body.style.overflow = "";
+    };
+  }, [visorAbierto, fotos.length]);
+
   const linkWhatsApp = () => {
     if (!vehiculo) return "#";
 
@@ -208,6 +233,7 @@ export default function DetalleVehiculoPage() {
             size={42}
             className="mx-auto animate-pulse text-[#D4202C]"
           />
+
           <p className="mt-4 font-semibold text-gray-600">
             Cargando información del vehículo...
           </p>
@@ -276,15 +302,17 @@ export default function DetalleVehiculoPage() {
             className="flex items-center gap-2 text-sm font-semibold text-gray-300 transition hover:text-white"
           >
             <ArrowLeft size={17} />
+
             <span className="hidden sm:inline">
               Volver al catálogo
             </span>
+
             <span className="sm:hidden">Volver</span>
           </a>
         </div>
       </header>
 
-      {/* DETALLE */}
+      {/* DETALLE DEL VEHÍCULO */}
       <section className="mx-auto max-w-7xl px-5 py-8 sm:px-6 sm:py-12">
         <div className="mb-7">
           <p className="text-sm font-bold uppercase tracking-wider text-[#D4202C]">
@@ -305,11 +333,18 @@ export default function DetalleVehiculoPage() {
           <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gray-100 sm:aspect-[16/10]">
               {fotoActual ? (
-                <img
-                  src={fotoActual.url}
-                  alt={`${vehiculo.marca} ${vehiculo.modelo} - fotografía ${fotoSeleccionada + 1}`}
-                  className="h-full w-full object-contain"
-                />
+                <button
+                  type="button"
+                  onClick={() => setVisorAbierto(true)}
+                  aria-label="Ampliar fotografía"
+                  className="h-full w-full cursor-zoom-in"
+                >
+                  <img
+                    src={fotoActual.url}
+                    alt={`${vehiculo.marca} ${vehiculo.modelo} - fotografía ${fotoSeleccionada + 1}`}
+                    className="h-full w-full object-contain"
+                  />
+                </button>
               ) : (
                 <div className="text-center text-gray-400">
                   <Car
@@ -317,6 +352,7 @@ export default function DetalleVehiculoPage() {
                     strokeWidth={1}
                     className="mx-auto"
                   />
+
                   <p className="mt-3">
                     No hay fotografías disponibles
                   </p>
@@ -350,6 +386,7 @@ export default function DetalleVehiculoPage() {
               )}
             </div>
 
+            {/* MINIATURAS */}
             {fotos.length > 0 && (
               <div className="flex gap-3 overflow-x-auto border-t p-3 sm:p-4">
                 {fotos.map((foto, indice) => (
@@ -377,6 +414,7 @@ export default function DetalleVehiculoPage() {
 
             <div className="flex items-center gap-2 border-t px-4 py-3 text-sm text-gray-500">
               <Images size={17} />
+
               {fotos.length}{" "}
               {fotos.length === 1
                 ? "fotografía"
@@ -395,6 +433,7 @@ export default function DetalleVehiculoPage() {
                 }`}
               >
                 <CheckCircle2 size={15} />
+
                 {vehiculo.disponible
                   ? "Disponible"
                   : "No disponible"}
@@ -426,6 +465,7 @@ export default function DetalleVehiculoPage() {
             </h2>
 
             <div className="mt-4 space-y-4">
+              {/* VEHÍCULO */}
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                   <Car size={20} />
@@ -435,12 +475,14 @@ export default function DetalleVehiculoPage() {
                   <p className="text-xs text-gray-400">
                     Vehículo
                   </p>
+
                   <p className="font-semibold">
                     {vehiculo.marca} {vehiculo.modelo}
                   </p>
                 </div>
               </div>
 
+              {/* COLOR */}
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                   <Palette size={20} />
@@ -450,12 +492,14 @@ export default function DetalleVehiculoPage() {
                   <p className="text-xs text-gray-400">
                     Color
                   </p>
+
                   <p className="font-semibold">
                     {vehiculo.color || "No especificado"}
                   </p>
                 </div>
               </div>
 
+              {/* SEGURO */}
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                   <ShieldCheck size={20} />
@@ -465,12 +509,14 @@ export default function DetalleVehiculoPage() {
                   <p className="text-xs text-gray-400">
                     Tipo de seguro
                   </p>
+
                   <p className="font-semibold">
                     {vehiculo.tipoSeguro}
                   </p>
                 </div>
               </div>
 
+              {/* ALQUILER */}
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                   <CalendarDays size={20} />
@@ -480,6 +526,7 @@ export default function DetalleVehiculoPage() {
                   <p className="text-xs text-gray-400">
                     Alquiler
                   </p>
+
                   <p className="font-semibold">
                     Consulta las fechas disponibles
                   </p>
@@ -487,7 +534,7 @@ export default function DetalleVehiculoPage() {
               </div>
             </div>
 
-            {/* CARACTERÍSTICAS ADICIONALES COMO BADGES */}
+            {/* CARACTERÍSTICAS ADICIONALES */}
             {caracteristicas.length > 0 && (
               <>
                 <div className="my-7 h-px bg-gray-200" />
@@ -507,6 +554,7 @@ export default function DetalleVehiculoPage() {
                           size={15}
                           className="shrink-0"
                         />
+
                         {caracteristica}
                       </span>
                     )
@@ -538,6 +586,7 @@ export default function DetalleVehiculoPage() {
           </aside>
         </div>
 
+        {/* VOLVER AL CATÁLOGO */}
         <div className="mt-8">
           <a
             href="/#vehiculos"
@@ -548,6 +597,69 @@ export default function DetalleVehiculoPage() {
           </a>
         </div>
       </section>
+
+      {/* VISOR DE FOTOGRAFÍAS A PANTALLA COMPLETA */}
+      {visorAbierto && fotoActual && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Fotografía ampliada del vehículo"
+          onClick={() => setVisorAbierto(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 sm:p-8"
+        >
+          {/* CERRAR */}
+          <button
+            type="button"
+            onClick={() => setVisorAbierto(false)}
+            aria-label="Cerrar fotografía ampliada"
+            className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-[#D4202C] sm:right-6 sm:top-6"
+          >
+            <X size={26} />
+          </button>
+
+          {/* FOTO ANTERIOR Y SIGUIENTE */}
+          {fotos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(evento) => {
+                  evento.stopPropagation();
+                  cambiarFoto(-1);
+                }}
+                aria-label="Fotografía anterior"
+                className="absolute left-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-[#D4202C] sm:left-6 sm:h-14 sm:w-14"
+              >
+                <ChevronLeft size={30} />
+              </button>
+
+              <button
+                type="button"
+                onClick={(evento) => {
+                  evento.stopPropagation();
+                  cambiarFoto(1);
+                }}
+                aria-label="Fotografía siguiente"
+                className="absolute right-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-[#D4202C] sm:right-6 sm:h-14 sm:w-14"
+              >
+                <ChevronRight size={30} />
+              </button>
+            </>
+          )}
+
+          {/* IMAGEN AMPLIADA */}
+          <img
+            src={fotoActual.url}
+            alt={`${vehiculo.marca} ${vehiculo.modelo} ampliado`}
+            onClick={(evento) => evento.stopPropagation()}
+            className="max-h-[88vh] max-w-[90vw] select-none object-contain"
+          />
+
+          {/* CONTADOR */}
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white">
+            {fotoSeleccionada + 1} / {fotos.length}
+          </div>
+        </div>
+      )}
 
       {/* PIE DE PÁGINA */}
       <footer className="border-t-4 border-[#D4202C] bg-black px-5 py-7 text-center text-sm text-gray-400">
