@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 // GET /api/vehiculos
 export async function GET() {
   try {
+    const autorizado = await isAdminAuthenticated();
     const pool = await getConnection();
 
     const result = await pool.query(`
@@ -16,7 +17,7 @@ export async function GET() {
         marca,
         modelo,
         anio,
-        placa,
+        ${autorizado ? "placa," : ""}
         color,
         tiposeguro AS "tipoSeguro",
         preciodia AS "precioDia",
@@ -27,28 +28,34 @@ export async function GET() {
       ORDER BY id DESC
     `);
 
-    const vehiculos = result.rows.map(
-      (vehiculo: Record<string, unknown>) => ({
-        ...vehiculo,
-        id: Number(vehiculo.id),
-        anio: Number(vehiculo.anio),
-        precioDia: Number(vehiculo.precioDia ?? 0),
+    const vehiculos = result.rows.map((vehiculo: Record<string, unknown>) => {
+      const {
+        id,
+        anio,
+        precioDia,
+        descripcion,
+        imagen,
+        disponible,
+        ...datosVehiculo
+      } = vehiculo;
+
+      return {
+        ...datosVehiculo,
+        id: Number(id),
+        anio: Number(anio),
+        precioDia: Number(precioDia ?? 0),
         descripcion:
-          typeof vehiculo.descripcion === "string" &&
-          vehiculo.descripcion.trim() !== ""
-            ? vehiculo.descripcion.trim()
+          typeof descripcion === "string" && descripcion.trim() !== ""
+            ? descripcion.trim()
             : null,
         imagen:
-          typeof vehiculo.imagen === "string" &&
-          vehiculo.imagen.trim() !== ""
-            ? vehiculo.imagen
-            : null,
+          typeof imagen === "string" && imagen.trim() !== "" ? imagen : null,
         disponible:
-          vehiculo.disponible === true ||
-          vehiculo.disponible === 1 ||
-          vehiculo.disponible === "true",
-      })
-    );
+          disponible === true ||
+          disponible === 1 ||
+          disponible === "true",
+      };
+    });
 
     return NextResponse.json(vehiculos, {
       headers: {

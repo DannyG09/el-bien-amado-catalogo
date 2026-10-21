@@ -16,6 +16,15 @@ export async function GET(
   { params }: Params
 ) {
   try {
+    const authenticated = await isAdminAuthenticated();
+
+    if (!authenticated) {
+      return NextResponse.json(
+        { error: "No autorizado. Debes iniciar sesión como administrador." },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
 
     const pool = await getConnection();

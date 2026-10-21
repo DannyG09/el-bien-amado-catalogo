@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowLeft,
   Car,
@@ -15,19 +18,9 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import type { Vehiculo as VehiculoCompleto } from "../../types/vehiculo";
 
-type Vehiculo = {
-  id: number;
-  marca: string;
-  modelo: string;
-  anio: number;
-  color: string;
-  tipoSeguro: string;
-  precioDia: number;
-  imagen: string | null;
-  descripcion: string | null;
-  disponible: boolean;
-};
+type Vehiculo = Omit<VehiculoCompleto, "placa">;
 
 type Foto = {
   id: number;
@@ -37,6 +30,57 @@ type Foto = {
 };
 
 const WHATSAPP_NUMERO = "18299212615";
+const CLASE_CAMPO =
+  "w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-[#D4202C] focus:ring-2 focus:ring-[#D4202C]/20";
+
+function esRegistro(datos: unknown): datos is Record<string, unknown> {
+  return typeof datos === "object" && datos !== null && !Array.isArray(datos);
+}
+
+function normalizarVehiculo(datos: unknown): Vehiculo {
+  if (!esRegistro(datos)) {
+    throw new Error("La respuesta contiene un vehículo con formato inválido.");
+  }
+
+  const id = Number(datos.id);
+  if (!Number.isFinite(id)) {
+    throw new Error("La respuesta contiene un vehículo sin identificador válido.");
+  }
+
+  const tipoSeguro = datos.tipoSeguro ?? datos.tiposeguro;
+  const precioDia = datos.precioDia ?? datos.preciodia;
+
+  return {
+    id,
+    marca: typeof datos.marca === "string" ? datos.marca : "",
+    modelo: typeof datos.modelo === "string" ? datos.modelo : "",
+    anio: Number(datos.anio),
+    color: typeof datos.color === "string" ? datos.color : "",
+    tipoSeguro:
+      typeof tipoSeguro === "string" ? tipoSeguro : "No especificado",
+    precioDia: Number(precioDia ?? 0),
+    imagen: typeof datos.imagen === "string" ? datos.imagen : null,
+    descripcion:
+      typeof datos.descripcion === "string" ? datos.descripcion : null,
+    disponible:
+      datos.disponible === true ||
+      datos.disponible === 1 ||
+      datos.disponible === "true",
+  };
+}
+
+function normalizarFoto(datos: unknown): Foto | null {
+  if (!esRegistro(datos) || typeof datos.url !== "string" || !datos.url) {
+    return null;
+  }
+
+  return {
+    id: Number(datos.id),
+    url: datos.url,
+    public_id: typeof datos.public_id === "string" ? datos.public_id : "",
+    orden: Number(datos.orden ?? 0),
+  };
+}
 
 function obtenerCaracteristicas(
   descripcion: string | null
@@ -59,6 +103,9 @@ export default function DetalleVehiculoPage() {
   const [visorAbierto, setVisorAbierto] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
+  const [errorFechas, setErrorFechas] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -76,38 +123,22 @@ export default function DetalleVehiculoPage() {
           throw new Error("No se pudieron cargar los vehículos.");
         }
 
-        const lista: any[] = await respuestaVehiculos.json();
+        const respuestaLista: unknown = await respuestaVehiculos.json();
 
-        const encontrado = lista.find(
-          (item) => String(item.id) === String(id)
+        if (!Array.isArray(respuestaLista)) {
+          throw new Error("La respuesta de vehículos tiene un formato inválido.");
+        }
+
+        const encontrado = respuestaLista.find(
+          (item: unknown) =>
+            esRegistro(item) && String(item.id) === String(id)
         );
 
         if (!encontrado) {
           throw new Error("No encontramos este vehículo.");
         }
 
-        const normalizado: Vehiculo = {
-          id: Number(encontrado.id),
-          marca: encontrado.marca ?? "",
-          modelo: encontrado.modelo ?? "",
-          anio: Number(encontrado.anio),
-          color: encontrado.color ?? "",
-          tipoSeguro:
-            encontrado.tipoSeguro ??
-            encontrado.tiposeguro ??
-            "No especificado",
-          precioDia: Number(
-            encontrado.precioDia ??
-              encontrado.preciodia ??
-              0
-          ),
-          imagen: encontrado.imagen ?? null,
-          descripcion: encontrado.descripcion ?? null,
-          disponible:
-            encontrado.disponible === true ||
-            encontrado.disponible === 1 ||
-            encontrado.disponible === "true",
-        };
+        const normalizado = normalizarVehiculo(encontrado);
 
         if (cancelado) return;
 
@@ -120,21 +151,12 @@ export default function DetalleVehiculoPage() {
         let fotosAdicionales: Foto[] = [];
 
         if (respuestaFotos.ok) {
-          const resultadoFotos = await respuestaFotos.json();
+          const resultadoFotos: unknown = await respuestaFotos.json();
 
           if (Array.isArray(resultadoFotos)) {
             fotosAdicionales = resultadoFotos
-              .filter(
-                (foto: any) =>
-                  typeof foto.url === "string" &&
-                  foto.url.length > 0
-              )
-              .map((foto: any) => ({
-                id: Number(foto.id),
-                url: foto.url,
-                public_id: foto.public_id ?? "",
-                orden: Number(foto.orden ?? 0),
-              }));
+              .map(normalizarFoto)
+              .filter((foto): foto is Foto => foto !== null);
           }
         }
 
@@ -213,17 +235,42 @@ export default function DetalleVehiculoPage() {
     };
   }, [visorAbierto, fotos.length]);
 
-  const linkWhatsApp = () => {
-    if (!vehiculo) return "#";
+  const fechaMinima = new Date(
+    Date.now() - new Date().getTimezoneOffset() * 60_000
+  )
+    .toISOString()
+    .slice(0, 10);
 
-    const mensaje =
-      `Hola, quiero información para alquilar el ${vehiculo.marca} ` +
-      `${vehiculo.modelo} ${vehiculo.anio}. ` +
-      `El precio publicado es USD$ ${vehiculo.precioDia} por día. ` +
-      "¿Podrían confirmarme la disponibilidad y los requisitos?";
+  function solicitarPorWhatsApp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!vehiculo || !vehiculo.disponible) return;
 
-    return `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensaje)}`;
-  };
+    if (!fechaInicio || !fechaFin || fechaFin <= fechaInicio) {
+      setErrorFechas("La fecha de devolución debe ser posterior a la recogida.");
+      return;
+    }
+
+    const formatoFecha = (fecha: string) =>
+      new Date(`${fecha}T12:00:00`).toLocaleDateString("es-DO", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+    const mensaje = [
+      `Hola, quiero solicitar disponibilidad para el ${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}.`,
+      `Fecha de recogida: ${formatoFecha(fechaInicio)}.`,
+      `Fecha de devolución: ${formatoFecha(fechaFin)}.`,
+      `Precio publicado: USD$ ${vehiculo.precioDia.toLocaleString("es-DO")} por día.`,
+      "Por favor, confirmen disponibilidad y requisitos. Entiendo que esta solicitud no confirma la reserva.",
+    ].join(" ");
+
+    window.open(
+      `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensaje)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
 
   if (cargando) {
     return (
@@ -563,17 +610,70 @@ export default function DetalleVehiculoPage() {
               </>
             )}
 
-            {/* WHATSAPP */}
+            {/* SOLICITUD DE FECHAS */}
             {vehiculo.disponible ? (
-              <a
-                href={linkWhatsApp()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-5 py-4 font-bold text-white transition hover:bg-black"
+              <form
+                id="solicitar-reserva"
+                onSubmit={solicitarPorWhatsApp}
+                className="mt-8 scroll-mt-6"
               >
-                <MessageCircle size={21} />
-                Consultar por WhatsApp
-              </a>
+                <h2 className="text-lg font-extrabold">
+                   Ingresar fechas de recogida y devolución
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Indica las fechas y envía la consulta por WhatsApp.
+                </p>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-semibold">
+                      Fecha de recogida
+                    </span>
+                    <input
+                      type="date"
+                      required
+                      min={fechaMinima}
+                      value={fechaInicio}
+                      onChange={(event) => {
+                        setFechaInicio(event.target.value);
+                        setErrorFechas("");
+                      }}
+                      className={CLASE_CAMPO}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-semibold">
+                      Fecha de devolución
+                    </span>
+                    <input
+                      type="date"
+                      required
+                      min={fechaInicio || fechaMinima}
+                      value={fechaFin}
+                      onChange={(event) => {
+                        setFechaFin(event.target.value);
+                        setErrorFechas("");
+                      }}
+                      className={CLASE_CAMPO}
+                    />
+                  </label>
+                </div>
+
+                {errorFechas && (
+                  <p role="alert" className="mt-3 text-sm font-medium text-red-600">
+                    {errorFechas}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-5 py-4 font-bold text-white transition hover:bg-black"
+                >
+                  <MessageCircle size={21} />
+                  Consultar por WhatsApp
+                </button>
+              </form>
             ) : (
               <div className="mt-8 rounded-xl bg-gray-100 px-4 py-4 text-center text-sm font-semibold text-gray-500">
                 Este vehículo no está disponible para reservar actualmente.
