@@ -2,9 +2,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import VehicleCard from "./components/VehicleCard";
-import type { Vehiculo } from "./types/vehiculo";
+import type { EstadoVehiculo, Vehiculo } from "./types/vehiculo";
 import {
   guardarIdioma,
   useIdioma,
@@ -258,6 +258,17 @@ function normalizarVehiculo(datos: unknown): Vehiculo {
 
   const tipoSeguro = vehiculo.tipoSeguro ?? vehiculo.tiposeguro;
   const precioDia = vehiculo.precioDia ?? vehiculo.preciodia;
+  const estado: EstadoVehiculo =
+    vehiculo.estado === "disponible" ||
+    vehiculo.estado === "rentado" ||
+    vehiculo.estado === "mantenimiento" ||
+    vehiculo.estado === "pintura"
+      ? vehiculo.estado
+      : vehiculo.disponible === true ||
+          vehiculo.disponible === 1 ||
+          vehiculo.disponible === "true"
+        ? "disponible"
+        : "rentado";
 
   return {
     id,
@@ -272,10 +283,8 @@ function normalizarVehiculo(datos: unknown): Vehiculo {
     imagen: typeof vehiculo.imagen === "string" ? vehiculo.imagen : null,
     descripcion:
       typeof vehiculo.descripcion === "string" ? vehiculo.descripcion : null,
-    disponible:
-      vehiculo.disponible === true ||
-      vehiculo.disponible === 1 ||
-      vehiculo.disponible === "true",
+    disponible: estado === "disponible",
+    estado,
   };
 }
 
@@ -301,6 +310,7 @@ export default function Home() {
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [paginaActual, setPaginaActual] = useState(1);
+  const vehiculosListaRef = useRef<HTMLDivElement>(null);
   const vehiculosPorPagina = 9;
 
   // Filtros
@@ -437,6 +447,14 @@ export default function Home() {
     { length: Math.min(totalPaginas, 5) },
     (_, indice) => primeraPaginaVisible + indice
   );
+
+  function cambiarPagina(pagina: number) {
+    setPaginaActual(pagina);
+    vehiculosListaRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -879,7 +897,10 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+            <div
+              ref={vehiculosListaRef}
+              className="scroll-mt-6 grid gap-7 sm:grid-cols-2 lg:grid-cols-3"
+            >
               {vehiculosPaginados.map((vehiculo) => (
                 <VehicleCard
                   key={vehiculo.id}
@@ -905,7 +926,7 @@ export default function Home() {
                 >
                   <button
                     type="button"
-                    onClick={() => setPaginaActual(paginaSegura - 1)}
+                    onClick={() => cambiarPagina(paginaSegura - 1)}
                     disabled={paginaSegura === 1}
                     aria-label={texto.previousPage}
                     className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:border-[#D4202C] hover:text-[#D4202C] disabled:cursor-not-allowed disabled:opacity-40"
@@ -917,7 +938,7 @@ export default function Home() {
                     <button
                       key={pagina}
                       type="button"
-                      onClick={() => setPaginaActual(pagina)}
+                      onClick={() => cambiarPagina(pagina)}
                       aria-current={pagina === paginaSegura ? "page" : undefined}
                       aria-label={`${idioma === "es" ? "Página" : "Page"} ${pagina}`}
                       className={
@@ -932,7 +953,7 @@ export default function Home() {
 
                   <button
                     type="button"
-                    onClick={() => setPaginaActual(paginaSegura + 1)}
+                    onClick={() => cambiarPagina(paginaSegura + 1)}
                     disabled={paginaSegura === totalPaginas}
                     aria-label={texto.nextPage}
                     className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:border-[#D4202C] hover:text-[#D4202C] disabled:cursor-not-allowed disabled:opacity-40"

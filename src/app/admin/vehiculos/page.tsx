@@ -6,8 +6,6 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Eye,
-  EyeOff,
   Gauge,
   LockKeyhole,
   Pencil,
@@ -15,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import AdminPageHeader from "../AdminPageHeader";
+import type { EstadoVehiculo } from "../../types/vehiculo";
 
 /*
   PALETA: negro, rojo #D4202C y blanco.
@@ -33,10 +32,11 @@ type Vehiculo = {
   imagen: string | null;
   descripcion: string | null;
   disponible: boolean;
+  estado: EstadoVehiculo;
   ultimoKilometraje: number | null;
 };
 
-type Filtro = "todos" | "disponibles" | "no-disponibles";
+type Filtro = "todos" | EstadoVehiculo;
 
 type Orden =
   | "reciente"
@@ -71,11 +71,11 @@ export default function VehiculosAdminPage() {
   const [passwordEliminar, setPasswordEliminar] = useState("");
   const [errorEliminar, setErrorEliminar] = useState("");
   const [eliminando, setEliminando] = useState(false);
-  const [vehiculoPendienteDisponibilidad, setVehiculoPendienteDisponibilidad] =
-    useState<Vehiculo | null>(null);
-  const [errorDisponibilidad, setErrorDisponibilidad] = useState("");
-  const [actualizandoDisponibilidad, setActualizandoDisponibilidad] =
+  const [actualizandoVehiculoId, setActualizandoVehiculoId] =
     useState<number | null>(null);
+  const [kilometrajesEditados, setKilometrajesEditados] = useState<
+    Record<number, string>
+  >({});
   const [vehiculosExpandidos, setVehiculosExpandidos] = useState<Set<number>>(
     () => new Set()
   );
@@ -85,7 +85,7 @@ export default function VehiculosAdminPage() {
 
     async function cargarVehiculos() {
       try {
-        const respuesta = await fetch("/api/vehiculos", {
+        const respuesta = await fetch("/api/vehiculos?administracion=true", {
           cache: "no-store",
         });
         if (!respuesta.ok) {
@@ -93,7 +93,17 @@ export default function VehiculosAdminPage() {
         }
 
         const datos = (await respuesta.json()) as Vehiculo[];
-        if (!cancelado) setVehiculos(datos);
+        if (!cancelado) {
+          setVehiculos(datos);
+          setKilometrajesEditados(
+            Object.fromEntries(
+              datos.map((vehiculo) => [
+                vehiculo.id,
+                vehiculo.ultimoKilometraje?.toString() ?? "",
+              ])
+            )
+          );
+        }
       } catch (errorCarga) {
         if (!cancelado) {
           console.error(errorCarga);
@@ -154,62 +164,61 @@ export default function VehiculosAdminPage() {
     }
   }
 
-  async function cambiarDisponibilidad(
+  async function actualizarVehiculo(
     vehiculo: Vehiculo,
-    disponible: boolean
+    cambios: { estado?: EstadoVehiculo; kilometraje?: number }
   ) {
-    if (actualizandoDisponibilidad !== null) return;
+    if (actualizandoVehiculoId !== null) return;
 
-    setActualizandoDisponibilidad(vehiculo.id);
-    setErrorDisponibilidad("");
+    setActualizandoVehiculoId(vehiculo.id);
     setError("");
     try {
       const respuesta = await fetch(`/api/vehiculos/${vehiculo.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disponible }),
+        body: JSON.stringify(cambios),
       });
       const resultado = (await respuesta.json()) as {
         error?: string;
+        estado?: EstadoVehiculo;
         disponible?: boolean;
+        ultimoKilometraje?: number | null;
       };
       if (!respuesta.ok) {
-        throw new Error(
-          resultado.error ?? "No se pudo actualizar la disponibilidad."
-        );
+        throw new Error(resultado.error ?? "No se pudo actualizar el vehículo.");
       }
 
       setVehiculos((actuales) =>
         actuales.map((actual) =>
           actual.id === vehiculo.id
-            ? { ...actual, disponible: resultado.disponible ?? disponible }
+            ? {
+                ...actual,
+                estado: resultado.estado ?? actual.estado,
+                disponible: resultado.disponible ?? actual.disponible,
+                ultimoKilometraje:
+                  resultado.ultimoKilometraje ?? actual.ultimoKilometraje,
+              }
             : actual
         )
       );
-      setVehiculoPendienteDisponibilidad(null);
+      if (cambios.kilometraje !== undefined) {
+        setKilometrajesEditados((actuales) => ({
+          ...actuales,
+          [vehiculo.id]: String(
+            resultado.ultimoKilometraje ?? cambios.kilometraje
+          ),
+        }));
+      }
     } catch (errorActualizacion) {
-      console.error("Error al actualizar la disponibilidad:", errorActualizacion);
-      const mensaje =
+      console.error("Error al actualizar el vehículo:", errorActualizacion);
+      setError(
         errorActualizacion instanceof Error
           ? errorActualizacion.message
-          : "No se pudo actualizar la disponibilidad.";
-      if (!disponible) {
-        setErrorDisponibilidad(mensaje);
-      } else {
-        setError(mensaje);
-      }
+          : "No se pudo actualizar el vehículo."
+      );
     } finally {
-      setActualizandoDisponibilidad(null);
+      setActualizandoVehiculoId(null);
     }
-  }
-
-  function solicitarCambioDisponibilidad(vehiculo: Vehiculo) {
-    if (vehiculo.disponible) {
-      setVehiculoPendienteDisponibilidad(vehiculo);
-      setErrorDisponibilidad("");
-      return;
-    }
-    void cambiarDisponibilidad(vehiculo, true);
   }
 
   function alternarDetallesVehiculo(vehiculoId: number) {
@@ -223,8 +232,6 @@ export default function VehiculosAdminPage() {
       return nuevos;
     });
   }
-
-  const disponibles = vehiculos.filter((v) => v.disponible).length;
 
   const marcas = useMemo(
     () => Array.from(new Set(vehiculos.map((v) => v.marca))).sort(),
@@ -254,8 +261,7 @@ export default function VehiculosAdminPage() {
     const max = precioMax === "" ? null : Number(precioMax);
 
     const lista = vehiculos.filter((v) => {
-      if (filtro === "disponibles" && !v.disponible) return false;
-      if (filtro === "no-disponibles" && v.disponible) return false;
+      if (filtro !== "todos" && v.estado !== filtro) return false;
       if (marcaFiltro !== "todas" && v.marca !== marcaFiltro) return false;
       if (min !== null && Number(v.precioDia) < min) return false;
       if (max !== null && Number(v.precioDia) > max) return false;
@@ -285,8 +291,31 @@ export default function VehiculosAdminPage() {
 
   const filtros: { id: Filtro; label: string; total: number }[] = [
     { id: "todos", label: "Todos", total: vehiculos.length },
-    { id: "disponibles", label: "Disponibles", total: disponibles },
-    { id: "no-disponibles", label: "No disponibles", total: vehiculos.length - disponibles },
+    {
+      id: "disponible",
+      label: "Disponibles",
+      total: vehiculos.filter((v) => v.estado === "disponible").length,
+    },
+    {
+      id: "rentado",
+      label: "Rentados",
+      total: vehiculos.filter((v) => v.estado === "rentado").length,
+    },
+    {
+      id: "reservado",
+      label: "Reservados",
+      total: vehiculos.filter((v) => v.estado === "reservado").length,
+    },
+    {
+      id: "mantenimiento",
+      label: "En mantenimiento",
+      total: vehiculos.filter((v) => v.estado === "mantenimiento").length,
+    },
+    {
+      id: "pintura",
+      label: "Taller de pintura",
+      total: vehiculos.filter((v) => v.estado === "pintura").length,
+    },
   ];
 
   return (
@@ -513,12 +542,26 @@ export default function VehiculosAdminPage() {
                       </span>
                       <span
                         className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                          vehiculo.disponible
+                          vehiculo.estado === "disponible"
                             ? "bg-emerald-50 text-emerald-700"
-                            : "bg-gray-100 text-gray-600"
+                            : vehiculo.estado === "mantenimiento"
+                              ? "bg-amber-50 text-amber-700"
+                              : vehiculo.estado === "pintura"
+                                ? "bg-purple-50 text-purple-700"
+                                : vehiculo.estado === "reservado"
+                                  ? "bg-indigo-50 text-indigo-700"
+                                : "bg-sky-50 text-sky-700"
                         }`}
                       >
-                        {vehiculo.disponible ? "Disponible" : "No disponible"}
+                        {vehiculo.estado === "disponible"
+                          ? "Disponible"
+                          : vehiculo.estado === "mantenimiento"
+                            ? "En mantenimiento"
+                            : vehiculo.estado === "pintura"
+                              ? "Taller de pintura"
+                              : vehiculo.estado === "reservado"
+                                ? "Reservado por contrato"
+                              : "Rentado"}
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
@@ -542,36 +585,38 @@ export default function VehiculosAdminPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={vehiculo.disponible}
-                      aria-label={`${
-                        vehiculo.disponible ? "Ocultar" : "Mostrar"
-                      } ${vehiculo.marca} ${vehiculo.modelo} ${
-                        vehiculo.disponible
-                          ? "(requiere confirmación)"
-                          : "en el catálogo"
-                      }`}
-                      disabled={actualizandoDisponibilidad === vehiculo.id}
-                      onClick={() => solicitarCambioDisponibilidad(vehiculo)}
-                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:cursor-wait disabled:opacity-60 ${
-                        vehiculo.disponible
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                          : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
-                      }`}
+                    <label className="sr-only" htmlFor={`estado-${vehiculo.id}`}>
+                      Estado de {vehiculo.marca} {vehiculo.modelo}
+                    </label>
+                    <select
+                      id={`estado-${vehiculo.id}`}
+                      value={vehiculo.estado}
+                      disabled={
+                        actualizandoVehiculoId === vehiculo.id ||
+                        vehiculo.estado === "reservado"
+                      }
+                      onChange={(evento) =>
+                        void actualizarVehiculo(vehiculo, {
+                          estado: evento.target.value as EstadoVehiculo,
+                        })
+                      }
+                      title={
+                        vehiculo.estado === "reservado"
+                          ? "La reserva se administra desde el contrato."
+                          : undefined
+                      }
+                      className="max-w-48 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:border-[#D4202C] disabled:opacity-60"
                     >
-                      {vehiculo.disponible ? (
-                        <Eye size={15} />
-                      ) : (
-                        <EyeOff size={15} />
+                      <option value="disponible">Disponible</option>
+                      {vehiculo.estado === "reservado" && (
+                        <option value="reservado" disabled>
+                          Reservado por contrato
+                        </option>
                       )}
-                      {actualizandoDisponibilidad === vehiculo.id
-                        ? "Actualizando..."
-                        : vehiculo.disponible
-                          ? "Visible"
-                          : "Oculto"}
-                    </button>
+                      <option value="rentado">Rentado</option>
+                      <option value="mantenimiento">En mantenimiento</option>
+                      <option value="pintura">Taller de pintura</option>
+                    </select>
                     <button
                       type="button"
                       aria-expanded={vehiculosExpandidos.has(vehiculo.id)}
@@ -618,7 +663,7 @@ export default function VehiculosAdminPage() {
                 {vehiculosExpandidos.has(vehiculo.id) && (
                   <div
                     id={`detalles-vehiculo-${vehiculo.id}`}
-                    className="grid gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-4 sm:grid-cols-3"
+                    className="grid gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4"
                   >
                     <p className="text-sm text-gray-600">
                       <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
@@ -636,7 +681,57 @@ export default function VehiculosAdminPage() {
                         {vehiculo.tipoSeguro || "No especificado"}
                       </span>
                     </p>
-                    <p className="text-sm text-gray-600 sm:col-span-3">
+                    <div className="text-sm text-gray-600">
+                      <label
+                        htmlFor={`kilometraje-${vehiculo.id}`}
+                        className="block text-[10px] font-bold uppercase tracking-wide text-gray-400"
+                      >
+                        Último kilometraje (km)
+                      </label>
+                      <div className="mt-1 flex gap-2">
+                        <input
+                          id={`kilometraje-${vehiculo.id}`}
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={kilometrajesEditados[vehiculo.id] ?? ""}
+                          onChange={(evento) =>
+                            setKilometrajesEditados((actuales) => ({
+                              ...actuales,
+                              [vehiculo.id]: evento.target.value,
+                            }))
+                          }
+                          placeholder="Sin registro"
+                          className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#D4202C]"
+                        />
+                        <button
+                          type="button"
+                          disabled={
+                            actualizandoVehiculoId === vehiculo.id ||
+                            kilometrajesEditados[vehiculo.id] === ""
+                          }
+                          onClick={() => {
+                            const kilometraje = Number(
+                              kilometrajesEditados[vehiculo.id]
+                            );
+                            if (
+                              !Number.isSafeInteger(kilometraje) ||
+                              kilometraje < 0
+                            ) {
+                              setError(
+                                "El kilometraje debe ser un entero igual o mayor que cero."
+                              );
+                              return;
+                            }
+                            void actualizarVehiculo(vehiculo, { kilometraje });
+                          }}
+                          className="rounded-lg bg-black px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Guardar
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600 sm:col-span-2 lg:col-span-4">
                       <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
                         Descripción
                       </span>
@@ -651,87 +746,6 @@ export default function VehiculosAdminPage() {
           </div>
         )}
       </section>
-
-      {vehiculoPendienteDisponibilidad && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4"
-          onMouseDown={(evento) => {
-            if (
-              evento.target === evento.currentTarget &&
-              actualizandoDisponibilidad === null
-            ) {
-              setVehiculoPendienteDisponibilidad(null);
-              setErrorDisponibilidad("");
-            }
-          }}
-        >
-          <section
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="confirmar-no-disponible-titulo"
-            aria-describedby="confirmar-no-disponible-descripcion"
-            className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl sm:p-8"
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-              <AlertTriangle size={24} />
-            </span>
-            <h2
-              id="confirmar-no-disponible-titulo"
-              className="mt-5 text-2xl font-extrabold text-gray-950"
-            >
-              ¿Ocultar este vehículo?
-            </h2>
-            <p
-              id="confirmar-no-disponible-descripcion"
-              className="mt-2 text-sm leading-6 text-gray-600"
-            >
-              <span className="font-bold text-gray-900">
-                {vehiculoPendienteDisponibilidad.marca}{" "}
-                {vehiculoPendienteDisponibilidad.modelo}
-              </span>{" "}
-              dejará de aparecer como disponible en el catálogo público. Puedes
-              volver a mostrarlo cuando quieras.
-            </p>
-            {errorDisponibilidad && (
-              <p
-                role="alert"
-                className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-800"
-              >
-                {errorDisponibilidad}
-              </p>
-            )}
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                disabled={actualizandoDisponibilidad !== null}
-                onClick={() => {
-                  setVehiculoPendienteDisponibilidad(null);
-                  setErrorDisponibilidad("");
-                }}
-                className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={actualizandoDisponibilidad !== null}
-                onClick={() =>
-                  void cambiarDisponibilidad(
-                    vehiculoPendienteDisponibilidad,
-                    false
-                  )
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#b81b26] disabled:cursor-wait disabled:opacity-60"
-              >
-                <EyeOff size={16} />
-                {actualizandoDisponibilidad !== null
-                  ? "Actualizando..."
-                  : "Sí, ocultar vehículo"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
 
       {vehiculoPendienteEliminar && (
         <div

@@ -9,7 +9,6 @@ import {
   ArrowUp,
   CalendarClock,
   CarFront,
-  Check,
   CircleDollarSign,
   Gauge,
   Images,
@@ -37,6 +36,8 @@ type Vehiculo = {
   imagen: string;
   descripcion: string;
   disponible: boolean;
+  estado: "disponible" | "reservado" | "rentado" | "mantenimiento" | "pintura";
+  kilometraje: number | null;
 };
 
 type Foto = {
@@ -155,9 +156,21 @@ export default function EditarVehiculoPage() {
           imagen: datos.imagen ?? "",
           descripcion: datos.descripcion ?? "",
           disponible:
-            datos.disponible === true ||
-            datos.disponible === 1 ||
-            datos.disponible === "true",
+            datos.estado === "disponible" ||
+            (datos.estado == null &&
+              (datos.disponible === true ||
+                datos.disponible === 1 ||
+                datos.disponible === "true")),
+          estado:
+            datos.estado === "rentado" ||
+            datos.estado === "mantenimiento" ||
+            datos.estado === "pintura"
+              ? datos.estado
+              : "disponible",
+          kilometraje:
+            datos.ultimoKilometraje == null
+              ? null
+              : Number(datos.ultimoKilometraje),
         });
 
         if (respuestaFotos.ok) {
@@ -234,7 +247,14 @@ export default function EditarVehiculoPage() {
         [name]:
           type === "checkbox"
             ? (e.target as HTMLInputElement).checked
-            : value,
+            : name === "kilometraje"
+              ? value === ""
+                ? null
+                : Number(value)
+              : value,
+        ...(name === "estado"
+          ? { disponible: value === "disponible" }
+          : {}),
       };
     });
   }
@@ -465,6 +485,8 @@ export default function EditarVehiculoPage() {
           imagen: vehiculo.imagen,
           descripcion: vehiculo.descripcion,
           disponible: vehiculo.disponible,
+          estado: vehiculo.estado,
+          kilometraje: vehiculo.kilometraje,
         }),
       });
 
@@ -651,13 +673,33 @@ export default function EditarVehiculoPage() {
               </div>
               <span
                 className={`inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-bold ${
-                  vehiculo.disponible
+                  vehiculo.estado === "disponible"
                     ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-                    : "border-amber-200/25 bg-amber-200/10 text-amber-100"
+                    : vehiculo.estado === "mantenimiento" ||
+                        vehiculo.estado === "pintura"
+                      ? "border-amber-200/25 bg-amber-200/10 text-amber-100"
+                      : "border-sky-200/25 bg-sky-200/10 text-sky-100"
                 }`}
               >
-                <span className={`h-2 w-2 rounded-full ${vehiculo.disponible ? "bg-emerald-300" : "bg-amber-300"}`} />
-                {vehiculo.disponible ? "Disponible para renta" : "No disponible"}
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    vehiculo.estado === "disponible"
+                      ? "bg-emerald-300"
+                      : vehiculo.estado === "mantenimiento" ||
+                          vehiculo.estado === "pintura"
+                        ? "bg-amber-300"
+                        : "bg-sky-300"
+                  }`}
+                />
+                {vehiculo.estado === "disponible"
+                  ? "Disponible"
+                  : vehiculo.estado === "mantenimiento"
+                    ? "En mantenimiento"
+                    : vehiculo.estado === "pintura"
+                      ? "Taller de pintura"
+                      : vehiculo.estado === "reservado"
+                        ? "Reservado por contrato"
+                      : "Rentado"}
               </span>
             </div>
 
@@ -669,15 +711,13 @@ export default function EditarVehiculoPage() {
                     Último kilometraje
                   </p>
                   <p className="mt-1 text-lg font-bold">
-                    {ultimoMantenimiento
-                      ? `${FORMATO_NUMERO.format(ultimoMantenimiento.kilometraje)} km`
+                    {vehiculo.kilometraje != null
+                      ? `${FORMATO_NUMERO.format(vehiculo.kilometraje)} km`
                       : "Sin registro"}
                   </p>
-                  {ultimoMantenimiento && (
-                    <p className="mt-0.5 text-xs text-white/50">
-                      Mantenimiento del {formatFecha(ultimoMantenimiento.fecha)}
-                    </p>
-                  )}
+                  <p className="mt-0.5 text-xs text-white/50">
+                    Odómetro actual del vehículo
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-2xl bg-white/[0.06] p-4">
@@ -806,20 +846,57 @@ export default function EditarVehiculoPage() {
                 />
               </div>
 
-              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:col-span-2">
-                <input
-                  type="checkbox"
-                  name="disponible"
-                  checked={vehiculo.disponible}
+              <div>
+                <label htmlFor="vehiculo-estado" className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-600">
+                  Estado del vehículo
+                </label>
+                <select
+                  id="vehiculo-estado"
+                  name="estado"
+                  value={vehiculo.estado}
                   onChange={cambiarCampo}
-                  className="h-5 w-5 accent-[#D4202C]"
-                />
-                <span>
-                  <span className="block text-sm font-bold text-gray-900">Disponible para renta</span>
-                  <span className="mt-0.5 block text-xs text-gray-500">Activa o pausa la publicación de este vehículo.</span>
-                </span>
-                {vehiculo.disponible && <Check size={18} className="ml-auto text-[#D4202C]" />}
-              </label>
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
+                >
+                  <option value="disponible">Disponible</option>
+                  {vehiculo.estado === "reservado" && (
+                    <option value="reservado" disabled>
+                      Reservado por contrato
+                    </option>
+                  )}
+                  <option value="rentado">Rentado</option>
+                  <option value="mantenimiento">En mantenimiento</option>
+                  <option value="pintura">Taller de pintura</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  Solo los vehículos disponibles aparecen en el catálogo público.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="vehiculo-kilometraje" className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-600">
+                  Último kilometraje registrado
+                </label>
+                <div className="relative">
+                  <input
+                    id="vehiculo-kilometraje"
+                    type="number"
+                    name="kilometraje"
+                    value={vehiculo.kilometraje ?? ""}
+                    onChange={cambiarCampo}
+                    required={vehiculo.kilometraje !== null}
+                    min={0}
+                    step={1}
+                    placeholder="Sin registro"
+                    className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 pr-14 text-sm outline-none transition focus:border-[#D4202C] focus:ring-4 focus:ring-red-100"
+                  />
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                    km
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Se actualiza también al registrar un mantenimiento con más kilómetros.
+                </p>
+              </div>
             </div>
           </section>
 

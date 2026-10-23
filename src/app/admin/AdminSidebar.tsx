@@ -4,52 +4,74 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
+  AlertTriangle,
   CarFront,
-  ClipboardList,
   LayoutDashboard,
   LogOut,
   UsersRound,
   ArrowUpRight,
   Wrench,
   WalletCards,
+  FileSignature,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+const NAV_GROUPS = [
   {
-    label: "Panel general",
-    href: "/admin",
-    icon: LayoutDashboard,
-    available: true,
+    label: "Principal",
+    items: [
+      {
+        label: "Dashboard",
+        href: "/admin",
+        icon: LayoutDashboard,
+        available: true,
+      },
+    ],
   },
   {
-    label: "Vehículos",
-    href: "/admin/vehiculos",
-    icon: CarFront,
-    available: true,
+    label: "Procesos",
+    items: [
+      {
+        label: "Vehículos",
+        href: "/admin/vehiculos",
+        icon: CarFront,
+        available: true,
+      },
+      {
+        label: "Clientes",
+        href: "/admin/clientes",
+        icon: UsersRound,
+        available: true,
+      },
+      {
+        label: "Contratos",
+        href: "/admin/contratos",
+        icon: FileSignature,
+        available: true,
+      },
+      {
+        label: "Pagos",
+        href: "/admin/gastos-recurrentes",
+        icon: WalletCards,
+        available: true,
+      },
+    ],
   },
   {
-    label: "Clientes",
-    href: "/admin/clientes",
-    icon: UsersRound,
-    available: false,
-  },
-  {
-    label: "Rentas",
-    href: "/admin/rentas",
-    icon: ClipboardList,
-    available: false,
-  },
-  {
-    label: "Mantenimiento",
-    href: "/admin/mantenimiento",
-    icon: Wrench,
-    available: true,
-  },
-  {
-    label: "Gastos recurrentes",
-    href: "/admin/gastos-recurrentes",
-    icon: WalletCards,
-    available: true,
+    label: "Operaciones",
+    items: [
+      {
+        label: "Mantenimiento",
+        href: "/admin/mantenimiento",
+        icon: Wrench,
+        available: true,
+      },
+      {
+        label: "Multas y daño",
+        href: "/admin/multas-danos",
+        icon: AlertTriangle,
+        available: false,
+      },
+    ],
   },
 ];
 
@@ -83,52 +105,61 @@ export default function AdminSidebar() {
 
         <nav
           aria-label="Navegación administrativa"
-          className="flex gap-2 overflow-x-auto px-4 pb-4 lg:flex-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-4"
+          className="flex gap-5 overflow-x-auto px-4 pb-4 lg:flex-1 lg:flex-col lg:gap-5 lg:overflow-y-auto lg:px-4"
         >
-          {NAV_ITEMS.map(({ label, href, icon: Icon, available }) => {
-            const activo =
-              available &&
-              (href === "/admin"
-                ? pathname === href
-                : pathname.startsWith(href));
-            const className = `flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
-              activo
-                ? "bg-[#D4202C] text-white shadow-lg shadow-red-950/30"
-                : available
-                  ? "text-gray-300 hover:bg-white/10 hover:text-white"
-                  : "cursor-not-allowed text-gray-600"
-            }`;
-            const contenido = (
-              <>
-                <Icon
-                  size={19}
-                  strokeWidth={activo ? 2.5 : 2}
-                  className={activo ? "text-white" : ""}
-                />
-                <span>{label}</span>
-                {!available && (
-                  <span className="ml-auto hidden rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-400 lg:inline">
-                    Pronto
-                  </span>
-                )}
-              </>
-            );
+          {NAV_GROUPS.map(({ label: grupo, items }) => (
+            <section key={grupo} className="shrink-0 lg:w-full">
+              <h2 className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
+                {grupo}
+              </h2>
+              <div className="flex gap-1 lg:flex-col">
+                {items.map(({ label, href, icon: Icon, available }) => {
+                  const activo =
+                    available &&
+                    (href === "/admin"
+                      ? pathname === href
+                      : pathname.startsWith(href));
+                  const className = `flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
+                    activo
+                      ? "bg-[#D4202C] text-white shadow-lg shadow-red-950/30"
+                      : available
+                        ? "text-gray-300 hover:bg-white/10 hover:text-white"
+                        : "cursor-not-allowed text-gray-600"
+                  }`;
+                  const contenido = (
+                    <>
+                      <Icon
+                        size={19}
+                        strokeWidth={activo ? 2.5 : 2}
+                        className={activo ? "text-white" : ""}
+                      />
+                      <span>{label}</span>
+                      {!available && (
+                        <span className="ml-auto hidden rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-400 lg:inline">
+                          Próximamente
+                        </span>
+                      )}
+                    </>
+                  );
 
-            return available ? (
-              <Link
-                key={href}
-                href={href}
-                aria-current={activo ? "page" : undefined}
-                className={className}
-              >
-                {contenido}
-              </Link>
-            ) : (
-              <span key={href} aria-disabled="true" className={className}>
-                {contenido}
-              </span>
-            );
-          })}
+                  return available ? (
+                    <Link
+                      key={href}
+                      href={href}
+                      aria-current={activo ? "page" : undefined}
+                      className={className}
+                    >
+                      {contenido}
+                    </Link>
+                  ) : (
+                    <span key={href} aria-disabled="true" className={className}>
+                      {contenido}
+                    </span>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </nav>
 
         <div className="hidden border-t border-white/10 p-4 lg:block">

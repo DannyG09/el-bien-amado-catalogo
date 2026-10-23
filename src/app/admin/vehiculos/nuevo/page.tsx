@@ -81,7 +81,7 @@ export default function NuevoVehiculoPage() {
     precioDia: "",
     imagen: "",
     descripcion: "",
-    disponible: true,
+    estado: "disponible",
   });
 
   const [fotosSeleccionadas, setFotosSeleccionadas] =
@@ -195,7 +195,7 @@ export default function NuevoVehiculoPage() {
           precioDia: Number(formulario.precioDia),
           imagen: imagenPrincipal,
           descripcion: formulario.descripcion.trim() || null,
-          disponible: formulario.disponible,
+          estado: formulario.estado,
         }),
       });
 
@@ -394,28 +394,18 @@ export default function NuevoVehiculoPage() {
               </div>
             </Campo>
 
-            <Campo label="Disponibilidad">
-              <label
-                className={
-                  formulario.disponible
-                    ? "flex cursor-pointer items-center gap-3 rounded-xl border-2 border-green-500 bg-green-50 px-4 py-3"
-                    : "flex cursor-pointer items-center gap-3 rounded-xl border-2 border-gray-300 bg-gray-50 px-4 py-3"
-                }
+            <Campo label="Estado del vehículo">
+              <select
+                name="estado"
+                value={formulario.estado}
+                onChange={handleChange}
+                className={inputClase}
               >
-                <input
-                  type="checkbox"
-                  name="disponible"
-                  checked={formulario.disponible}
-                  onChange={handleChange}
-                  className="h-5 w-5 accent-[#D4202C]"
-                />
-
-                <span className="text-sm font-bold text-gray-700">
-                  {formulario.disponible
-                    ? "Disponible para renta"
-                    : "No disponible por ahora"}
-                </span>
-              </label>
+                <option value="disponible">Disponible</option>
+                <option value="rentado">Rentado</option>
+                <option value="mantenimiento">En mantenimiento</option>
+                <option value="pintura">Taller de pintura</option>
+              </select>
             </Campo>
 
             {/* 3. IMÁGENES */}

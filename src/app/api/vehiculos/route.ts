@@ -5,10 +5,21 @@ import { isAdminAuthenticated } from "../../lib/auth";
 
 export const runtime = "nodejs";
 
+const ESTADOS_VEHICULO = [
+  "disponible",
+  "reservado",
+  "rentado",
+  "mantenimiento",
+  "pintura",
+] as const;
+
 // GET /api/vehiculos
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const autorizado = await isAdminAuthenticated();
+    const mostrarTodos =
+      autorizado &&
+      new URL(request.url).searchParams.get("administracion") === "true";
     const pool = await getConnection();
 
     const result = await pool.query(`
@@ -17,27 +28,31 @@ export async function GET() {
         marca,
         modelo,
         anio,
-        ${autorizado ? "placa," : ""}
+        ${mostrarTodos ? "placa," : ""}
         color,
         tiposeguro AS "tipoSeguro",
         preciodia AS "precioDia",
         imagen,
         descripcion,
-        disponible${
-          autorizado
+        disponible,
+        estado${
+          mostrarTodos
             ? `,
-        (
-          SELECT kilometraje
-          FROM public.mantenimientos
-          WHERE vehiculo_id = vehiculos.id
-          ORDER BY fecha DESC, id DESC
-          LIMIT 1
-        ) AS "ultimoKilometraje"`
+        kilometraje AS "ultimoKilometraje"`
             : ""
         }
       FROM vehiculos
+      WHERE $1::boolean OR (
+        estado = 'disponible'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.contratos AS c
+          WHERE c.vehiculo_id = vehiculos.id
+            AND c.estado IN ('pendiente_firma', 'activo')
+        )
+      )
       ORDER BY id DESC
-    `);
+    `, [mostrarTodos]);
 
     const vehiculos = result.rows.map((vehiculo: Record<string, unknown>) => {
       const {
@@ -47,9 +62,17 @@ export async function GET() {
         descripcion,
         imagen,
         disponible,
+        estado,
         ultimoKilometraje,
         ...datosVehiculo
       } = vehiculo;
+      const estadoValido =
+        typeof estado === "string" &&
+        ESTADOS_VEHICULO.includes(estado as (typeof ESTADOS_VEHICULO)[number])
+          ? estado
+          : disponible === true
+            ? "disponible"
+            : "rentado";
 
       return {
         ...datosVehiculo,
@@ -63,10 +86,9 @@ export async function GET() {
         imagen:
           typeof imagen === "string" && imagen.trim() !== "" ? imagen : null,
         disponible:
-          disponible === true ||
-          disponible === 1 ||
-          disponible === "true",
-        ...(autorizado
+          estadoValido === "disponible",
+        estado: estadoValido,
+        ...(mostrarTodos
           ? {
               ultimoKilometraje:
                 ultimoKilometraje == null
@@ -119,6 +141,8 @@ export async function POST(request: Request) {
       imagen,
       descripcion,
       disponible,
+      estado,
+      kilometraje,
     } = body ?? {};
 
     // 3. Validar los campos obligatorios.
@@ -166,7 +190,20 @@ export async function POST(request: Request) {
     if (
       (imagen != null && typeof imagen !== "string") ||
       (descripcion != null && typeof descripcion !== "string") ||
-      (disponible != null && typeof disponible !== "boolean")
+      (disponible != null && typeof disponible !== "boolean") ||
+      (estado != null &&
+        (typeof estado !== "string" ||
+          estado === "reservado" ||
+          !ESTADOS_VEHICULO.includes(
+            estado as (typeof ESTADOS_VEHICULO)[number]
+          ))) ||
+      (kilometraje != null &&
+        ((typeof kilometraje !== "number" &&
+          typeof kilometraje !== "string") ||
+          (typeof kilometraje === "string" && !kilometraje.trim()) ||
+          !Number.isSafeInteger(Number(kilometraje)) ||
+          Number(kilometraje) < 0 ||
+          Number(kilometraje) > 2147483647))
     ) {
       return NextResponse.json(
         { error: "Hay campos con formatos incorrectos." },
@@ -185,6 +222,9 @@ export async function POST(request: Request) {
       typeof imagen === "string" && imagen.trim()
         ? imagen.trim()
         : null;
+    const estadoInicial =
+      estado ??
+      (disponible === false ? "rentado" : "disponible");
 
     // 4. Guardar el vehículo.
     const pool = await getConnection();
@@ -201,9 +241,11 @@ export async function POST(request: Request) {
         preciodia,
         imagen,
         descripcion,
-        disponible
+        disponible,
+        estado,
+        kilometraje
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING
         id,
         marca,
@@ -215,7 +257,9 @@ export async function POST(request: Request) {
         preciodia AS "precioDia",
         imagen,
         descripcion,
-        disponible
+        disponible,
+        estado,
+        kilometraje AS "ultimoKilometraje"
       `,
       [
         marca.trim(),
@@ -227,7 +271,9 @@ export async function POST(request: Request) {
         precioNumero,
         imagenLimpia,
         descripcionLimpia,
-        disponible ?? true,
+        estadoInicial === "disponible",
+        estadoInicial,
+        kilometraje == null ? null : Number(kilometraje),
       ]
     );
 
@@ -241,7 +287,12 @@ export async function POST(request: Request) {
         precioDia: Number(vehiculo.precioDia),
         descripcion: vehiculo.descripcion ?? null,
         imagen: vehiculo.imagen ?? null,
-        disponible: vehiculo.disponible === true,
+        disponible: vehiculo.estado === "disponible",
+        estado: vehiculo.estado,
+        ultimoKilometraje:
+          vehiculo.ultimoKilometraje == null
+            ? null
+            : Number(vehiculo.ultimoKilometraje),
       },
       { status: 201 }
     );

@@ -48,27 +48,40 @@ export async function PUT(request: Request, { params }: Params) {
     const datos = validacion.datos;
     const pool = await getConnection();
     const resultado = await pool.query(
-      `UPDATE public.mantenimientos AS m
-       SET
-         vehiculo_id = v.id,
-         fecha = $3,
-         categoria = $4,
-         monto = $5,
-         kilometraje = $6,
-         descripcion = $7
-       FROM public.vehiculos AS v
-       WHERE m.id = $1
-         AND v.id = $2
-       RETURNING
-         m.id,
-         m.vehiculo_id AS "vehiculoId",
-         CONCAT_WS(' ', v.marca, v.modelo) AS vehiculo,
-         v.placa,
-         m.fecha::text AS fecha,
-         m.categoria,
-         m.monto,
-         m.kilometraje,
-         m.descripcion`,
+      `WITH actualizado AS (
+         UPDATE public.mantenimientos AS m
+         SET
+           vehiculo_id = v.id,
+           fecha = $3,
+           categoria = $4,
+           monto = $5,
+           kilometraje = $6,
+           descripcion = $7
+         FROM public.vehiculos AS v
+         WHERE m.id = $1
+           AND v.id = $2
+         RETURNING
+           m.id,
+           m.vehiculo_id AS "vehiculoId",
+           CONCAT_WS(' ', v.marca, v.modelo) AS vehiculo,
+           v.placa,
+           m.fecha::text AS fecha,
+           m.categoria,
+           m.monto,
+           m.kilometraje,
+           m.descripcion
+       ),
+       kilometraje_actualizado AS (
+         UPDATE public.vehiculos AS v
+         SET kilometraje = GREATEST(COALESCE(v.kilometraje, 0), a.kilometraje)
+         FROM actualizado AS a
+         WHERE v.id = a."vehiculoId"
+         RETURNING v.id
+       )
+       SELECT a.*
+       FROM actualizado AS a
+       LEFT JOIN kilometraje_actualizado AS k
+         ON k.id = a."vehiculoId"`,
       [
         mantenimientoId,
         datos.vehiculoId,

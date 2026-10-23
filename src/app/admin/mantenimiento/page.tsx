@@ -92,7 +92,9 @@ function fechaLocalHoy() {
 }
 
 async function obtenerVehiculos() {
-  const respuesta = await fetch("/api/vehiculos", { cache: "no-store" });
+  const respuesta = await fetch("/api/vehiculos?administracion=true", {
+    cache: "no-store",
+  });
   if (!respuesta.ok) {
     throw new Error("No se pudieron cargar los vehículos.");
   }

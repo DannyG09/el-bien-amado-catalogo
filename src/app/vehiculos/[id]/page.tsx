@@ -182,6 +182,17 @@ function normalizarVehiculo(datos: unknown): Vehiculo {
 
   const tipoSeguro = datos.tipoSeguro ?? datos.tiposeguro;
   const precioDia = datos.precioDia ?? datos.preciodia;
+  const estado =
+    datos.estado === "disponible" ||
+    datos.estado === "rentado" ||
+    datos.estado === "mantenimiento" ||
+    datos.estado === "pintura"
+      ? datos.estado
+      : datos.disponible === true ||
+          datos.disponible === 1 ||
+          datos.disponible === "true"
+        ? "disponible"
+        : "rentado";
 
   return {
     id,
@@ -195,10 +206,8 @@ function normalizarVehiculo(datos: unknown): Vehiculo {
     imagen: typeof datos.imagen === "string" ? datos.imagen : null,
     descripcion:
       typeof datos.descripcion === "string" ? datos.descripcion : null,
-    disponible:
-      datos.disponible === true ||
-      datos.disponible === 1 ||
-      datos.disponible === "true",
+    disponible: estado === "disponible",
+    estado,
   };
 }
 

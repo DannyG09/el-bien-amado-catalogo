@@ -192,17 +192,11 @@ export async function GET(request: Request) {
             SELECT jsonb_build_object(
               'vehiculo', CONCAT_WS(' ', v.marca, v.modelo),
               'placa', v.placa,
-              'kilometraje', lecturas.kilometraje
+              'kilometraje', v.kilometraje
             )
-            FROM (
-              SELECT DISTINCT ON (vehiculo_id)
-                vehiculo_id,
-                kilometraje
-              FROM public.mantenimientos
-              ORDER BY vehiculo_id, fecha DESC, id DESC
-            ) AS lecturas
-            INNER JOIN public.vehiculos AS v ON v.id = lecturas.vehiculo_id
-            ORDER BY lecturas.kilometraje DESC, lecturas.vehiculo_id ASC
+            FROM public.vehiculos AS v
+            WHERE v.kilometraje IS NOT NULL
+            ORDER BY v.kilometraje DESC, v.id ASC
             LIMIT 1
           ) AS "vehiculoMayorKilometraje"
       `),
@@ -358,29 +352,42 @@ export async function POST(request: Request) {
     try {
       const pool = await getConnection();
       const resultado = await pool.query(
-        `INSERT INTO public.mantenimientos (
-           vehiculo_id,
-           fecha,
-           categoria,
-           monto,
-           kilometraje,
-           descripcion,
-           factura_public_id,
-           factura_formato,
-           factura_version
+        `WITH registro AS (
+           INSERT INTO public.mantenimientos (
+             vehiculo_id,
+             fecha,
+             categoria,
+             monto,
+             kilometraje,
+             descripcion,
+             factura_public_id,
+             factura_formato,
+             factura_version
+           )
+           SELECT id, $2, $3, $4, $5, $6, $7, $8, $9
+           FROM public.vehiculos
+           WHERE id = $1
+           RETURNING
+             id,
+             vehiculo_id AS "vehiculoId",
+             fecha::text AS fecha,
+             categoria,
+             monto,
+             kilometraje,
+             descripcion,
+             factura_public_id IS NOT NULL AS "tieneFactura"
+         ),
+         kilometraje_actualizado AS (
+           UPDATE public.vehiculos AS v
+           SET kilometraje = GREATEST(COALESCE(v.kilometraje, 0), r.kilometraje)
+           FROM registro AS r
+           WHERE v.id = r."vehiculoId"
+           RETURNING v.id
          )
-         SELECT id, $2, $3, $4, $5, $6, $7, $8, $9
-         FROM public.vehiculos
-         WHERE id = $1
-         RETURNING
-           id,
-           vehiculo_id AS "vehiculoId",
-           fecha::text AS fecha,
-           categoria,
-           monto,
-           kilometraje,
-           descripcion,
-           factura_public_id IS NOT NULL AS "tieneFactura"`,
+         SELECT r.*
+         FROM registro AS r
+         LEFT JOIN kilometraje_actualizado AS k
+           ON k.id = r."vehiculoId"`,
         [
           datos.vehiculoId,
           datos.fecha,

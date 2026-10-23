@@ -72,7 +72,11 @@ export function validarDatosMantenimiento(
     };
   }
 
-  if (!Number.isSafeInteger(kilometraje) || kilometraje < 0) {
+  if (
+    !Number.isSafeInteger(kilometraje) ||
+    kilometraje < 0 ||
+    kilometraje > 2147483647
+  ) {
     return {
       valido: false,
       error:

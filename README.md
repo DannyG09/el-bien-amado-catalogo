@@ -13,6 +13,12 @@ Catálogo web de vehículos de alquiler para **El Bien Amado Rent A Car**, con p
 **Panel de administración** (`/admin`)
 - Inicio de sesión protegido con cookie firmada (HMAC, `httpOnly`, duración de 8 h).
 - Crear, editar y eliminar vehículos.
+- Registro de clientes con nacionalidad, cédula, datos de contacto, vencimiento de licencia, dirección y notas.
+- Edición de clientes con carga privada y administración de fotos de perfil, cédulas, licencias y otros documentos.
+- Contratos de renta vinculados al historial de clientes y vehículos.
+- Reservas de vehículos desde la creación del contrato; quedan rentados al cargar la firma presencial y se liberan al completar o cancelar el contrato.
+- Registro de pagos de renta y depósito, cálculo de saldo y generación de PDF con términos y datos de empresa guardados como copia del contrato.
+- Configuración de nombre, contacto, términos y firma/sello empresarial para los nuevos contratos.
 - Subida de hasta 8 fotos por vehículo a Cloudinary mediante firma en servidor.
 - Panel principal con indicadores de la flota y accesos rápidos; navegación y encabezados con un diseño visual unificado.
 - Registro de mantenimiento por vehículo, gastos en DOP, categorías e historial de kilometraje.
@@ -22,7 +28,9 @@ Catálogo web de vehículos de alquiler para **El Bien Amado Rent A Car**, con p
 - Gastos recurrentes mensuales y anuales por vehículo, con cálculo automático de próxima fecha.
 - Pantalla central de gastos recurrentes conectada a la flota, clasificada por tipo, con contador de días de vigencia, filtros, proyección anual y reporte PDF anual con resumen y desglose mensual.
 - Reordenamiento de fotografías para elegir la portada y consulta de los últimos cinco mantenimientos desde la edición del vehículo.
-- Resumen de gastos históricos, proyección anual de gastos recurrentes y kilometraje más reciente por vehículo.
+- Estado de cada vehículo (disponible, rentado, en mantenimiento o en taller de pintura), con filtros en el panel; el catálogo público muestra únicamente los disponibles.
+- Edición del kilometraje actual de la flota, sincronizado automáticamente al registrar lecturas de mantenimiento.
+- Resumen de gastos históricos, proyección anual de gastos recurrentes y kilometraje actual por vehículo.
 - Interfaz de administración simplificada, sin imagen de fondo, y consultas paginadas para reducir la carga del historial.
 
 ## 🛠️ Tecnologías
@@ -72,10 +80,12 @@ CLOUDINARY_API_SECRET=tu_api_secret
 
 La app espera estas tablas (nombres de columnas según las consultas del código; ajusta los tipos a tu caso):
 
-- **`vehiculos`**: `id`, `marca`, `modelo`, `anio`, `placa`, `color`, `tiposeguro`, `preciodia`, `imagen`, `descripcion`, `disponible`
+- **`vehiculos`**: `id`, `marca`, `modelo`, `anio`, `placa`, `color`, `tiposeguro`, `preciodia`, `imagen`, `descripcion`, `disponible`, `estado`, `kilometraje`
 - **`vehiculo_fotos`**: fotos asociadas a cada vehículo (relación con `vehiculos.id`)
 - **`mantenimientos`**: registros de gasto y kilometraje, asociados a `vehiculos.id`.
 - **`vehiculo_gastos_recurrentes`**: pagos periódicos asociados a cada vehículo.
+- **`clientes`** y **`cliente_documentos`**: datos personales y archivos privados de clientes.
+- **`contratos`**, **`contrato_pagos`** y **`contrato_configuracion`**: contratos, pagos, firmas y datos/condiciones empresariales.
 
 Ejecuta las migraciones en orden:
 
@@ -83,11 +93,23 @@ Ejecuta las migraciones en orden:
 2. [`database/migrations/002_gastos_recurrentes.sql`](./database/migrations/002_gastos_recurrentes.sql) habilita los gastos recurrentes.
 3. [`database/migrations/003_facturas_mantenimientos.sql`](./database/migrations/003_facturas_mantenimientos.sql) añade referencias opcionales a facturas privadas para los mantenimientos existentes.
 4. [`database/migrations/004_categorias_gastos_recurrentes.sql`](./database/migrations/004_categorias_gastos_recurrentes.sql) clasifica los gastos recurrentes existentes y añade tipos de gasto.
+5. [`database/migrations/005_estado_y_kilometraje_vehiculos.sql`](./database/migrations/005_estado_y_kilometraje_vehiculos.sql) añade el estado y kilometraje actual de cada vehículo. Los vehículos previamente no disponibles se inicializan como rentados; puedes ajustar su estado desde el panel.
+6. [`database/migrations/006_estado_taller_pintura.sql`](./database/migrations/006_estado_taller_pintura.sql) permite registrar el nuevo estado de taller de pintura. Ejecútala incluso si ya aplicaste la migración 005.
+7. [`database/migrations/007_clientes.sql`](./database/migrations/007_clientes.sql) crea las tablas para registrar clientes y sus documentos.
+8. [`database/migrations/008_contratos.sql`](./database/migrations/008_contratos.sql) crea contratos, pagos y configuración, y agrega el estado reservado a los vehículos. Ejecútala después de la migración 007.
+
+Los documentos de clientes se guardan como archivos autenticados en Cloudinary y
+se sirven únicamente a sesiones administrativas. Se aceptan imágenes JPG, PNG,
+WEBP y documentos PDF de hasta 8 MB.
+Las firmas de cliente y empresa se aceptan en PNG o JPG de hasta 8 MB y se
+guardan en PostgreSQL. Cada contrato conserva una copia de los datos de cliente,
+vehículo, empresa y términos usada al crearlo.
 
 Los gastos de mantenimiento y recurrentes se registran en pesos dominicanos (DOP).
 La proyección anual convierte cada gasto mensual a doce meses y presenta los gastos
-históricos por separado. El kilometraje más reciente se obtiene de la última lectura
-registrada para cada vehículo.
+históricos por separado. El kilometraje actual se guarda en el vehículo, se inicializa
+con la lectura de mantenimiento más reciente y se incrementa al registrar un mantenimiento
+con una lectura superior.
 
 ## ▶️ Scripts
 
@@ -105,8 +127,10 @@ src/app/
 ├── page.tsx                 # Catálogo público
 ├── vehiculos/[id]/          # Detalle de vehículo
 ├── login/                   # Acceso de administrador
-├── admin/                   # Panel, vehículos y mantenimiento
+├── admin/                   # Panel, vehículos, clientes, contratos y mantenimiento
 ├── api/
+│   ├── contratos/           # Contratos, pagos, firmas, configuración y PDF
+│   ├── clientes/             # Clientes y archivos privados
 │   ├── gastos-recurrentes/  # Gestión de flota y reporte anual PDF
 │   ├── vehiculos/           # Vehículos, mantenimientos recientes y gastos recurrentes
 │   ├── mantenimientos/      # Historial, facturas privadas, PDF mensual y edición
@@ -124,6 +148,7 @@ public/                      # Logo e imágenes
 | GET | `/api/vehiculos` | Público |
 | POST | `/api/vehiculos` | Admin |
 | PUT / DELETE | `/api/vehiculos/:id` | Admin |
+| PATCH | `/api/vehiculos/:id` | Admin |
 | GET | `/api/vehiculo-fotos?vehiculoId=` | Público |
 | POST / DELETE / PATCH | `/api/vehiculo-fotos` | Admin |
 | POST | `/api/cloudinary-signature` | Admin |
@@ -133,6 +158,14 @@ public/                      # Logo e imágenes
 | GET | `/api/mantenimientos/reporte?mes=AAAA-MM` | Admin |
 | GET / POST | `/api/gastos-recurrentes` | Admin |
 | GET | `/api/gastos-recurrentes/reporte?anio=AAAA` | Admin |
+| GET / POST | `/api/clientes` | Admin |
+| GET / PUT / DELETE | `/api/clientes/:id` | Admin |
+| GET / POST | `/api/contratos` | Admin |
+| GET / PUT / PATCH | `/api/contratos/:id` | Admin |
+| POST | `/api/contratos/:id/firma` | Admin |
+| POST | `/api/contratos/:id/pagos` | Admin |
+| GET | `/api/contratos/:id/pdf` | Admin |
+| GET / PUT | `/api/contratos/configuracion` | Admin |
 | GET | `/api/vehiculos/:id/mantenimientos` | Admin |
 | GET / POST | `/api/vehiculos/:id/gastos-recurrentes` | Admin |
 | PUT / DELETE | `/api/vehiculos/:id/gastos-recurrentes/:gastoId` | Admin |

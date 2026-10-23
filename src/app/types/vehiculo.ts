@@ -1,3 +1,10 @@
+export type EstadoVehiculo =
+  | "disponible"
+  | "reservado"
+  | "rentado"
+  | "mantenimiento"
+  | "pintura";
+
 export type Vehiculo = {
   id: number;
   marca: string;
@@ -10,4 +17,5 @@ export type Vehiculo = {
   imagen: string | null;
   descripcion: string | null;
   disponible: boolean;
+  estado: EstadoVehiculo;
 };

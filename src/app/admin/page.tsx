@@ -7,10 +7,10 @@ import {
   ArrowUpRight,
   CarFront,
   CheckCircle2,
-  ClipboardList,
-  Gauge,
   Plus,
   Receipt,
+  CircleAlert,
+  FileSignature,
   UsersRound,
   Wrench,
 } from "lucide-react";
@@ -18,19 +18,32 @@ import AdminPageHeader from "./AdminPageHeader";
 
 type Vehiculo = {
   id: number;
-  disponible: boolean;
+  marca: string;
+  modelo: string;
+  placa: string;
+  estado: "disponible" | "reservado" | "rentado" | "mantenimiento" | "pintura";
+  ultimoKilometraje: number | null;
+};
+
+type MantenimientoReciente = {
+  id: number;
+  vehiculoId: number;
+  vehiculo: string;
+  placa: string;
+  fecha: string;
+  categoria: string;
+  monto: number;
+  kilometraje: number;
 };
 
 type ResumenMantenimiento = {
   gastoTotal: number;
   mantenimientoHistorico: number;
   proyeccionRecurrenteAnual: number;
-  vehiculoMayorKilometraje: {
-    kilometraje: number;
-  } | null;
 };
 
 type RespuestaMantenimiento = {
+  registros: MantenimientoReciente[];
   resumen: ResumenMantenimiento;
 };
 
@@ -41,9 +54,22 @@ const FORMATO_DOP = new Intl.NumberFormat("es-DO", {
 });
 const FORMATO_NUMERO = new Intl.NumberFormat("es-DO");
 
+function formatFecha(fecha: string) {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-DO", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(anio, mes - 1, dia)));
+}
+
 export default function AdminPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[] | null>(null);
   const [resumen, setResumen] = useState<ResumenMantenimiento | null>(null);
+  const [mantenimientos, setMantenimientos] = useState<
+    MantenimientoReciente[] | null
+  >(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -51,8 +77,8 @@ export default function AdminPage() {
 
     async function cargarResumen() {
       const resultados = await Promise.allSettled([
-        fetch("/api/vehiculos", { cache: "no-store" }),
-        fetch("/api/mantenimientos?pagina=1&limite=1", {
+        fetch("/api/vehiculos?administracion=true", { cache: "no-store" }),
+        fetch("/api/mantenimientos?pagina=1&limite=5", {
           cache: "no-store",
         }),
       ]);
@@ -78,7 +104,10 @@ export default function AdminPage() {
       } else {
         const datos = (await respuestaMantenimiento.value.json()) as
           RespuestaMantenimiento;
-        if (!cancelado) setResumen(datos.resumen);
+        if (!cancelado) {
+          setResumen(datos.resumen);
+          setMantenimientos(datos.registros);
+        }
       }
 
       if (!cancelado && errores.length > 0) setError(errores.join(" "));
@@ -97,7 +126,20 @@ export default function AdminPage() {
 
   const cantidadVehiculos = vehiculos?.length ?? null;
   const vehiculosDisponibles =
-    vehiculos?.filter((vehiculo) => vehiculo.disponible).length ?? null;
+    vehiculos?.filter((vehiculo) => vehiculo.estado === "disponible").length ??
+    null;
+  const vehiculosRentados =
+    vehiculos?.filter((vehiculo) => vehiculo.estado === "rentado").length ?? null;
+  const vehiculosReservados =
+    vehiculos?.filter((vehiculo) => vehiculo.estado === "reservado").length ?? null;
+  const vehiculosEnMantenimiento =
+    vehiculos?.filter((vehiculo) => vehiculo.estado === "mantenimiento") ?? [];
+  const vehiculosEnPintura =
+    vehiculos?.filter((vehiculo) => vehiculo.estado === "pintura") ?? [];
+  const vehiculosEnTaller = [
+    ...vehiculosEnMantenimiento,
+    ...vehiculosEnPintura,
+  ];
 
   const estadisticas = [
     {
@@ -119,10 +161,9 @@ export default function AdminPage() {
       detalle:
         vehiculos === null
           ? "Cargando inventario"
-          : `${FORMATO_NUMERO.format(
-              vehiculos.length -
-                vehiculos.filter((vehiculo) => vehiculo.disponible).length
-            )} no disponibles`,
+          : `${FORMATO_NUMERO.format(vehiculosRentados ?? 0)} rentados · ${FORMATO_NUMERO.format(
+              vehiculosReservados ?? 0
+            )} reservados · ${FORMATO_NUMERO.format(vehiculosEnTaller.length)} en taller`,
       icono: CheckCircle2,
       color: "bg-emerald-50 text-emerald-700",
     },
@@ -137,20 +178,16 @@ export default function AdminPage() {
       color: "bg-amber-50 text-amber-700",
     },
     {
-      label: "Kilometraje más alto",
+      label: "Vehículos en taller",
       valor:
-        resumen?.vehiculoMayorKilometraje === null
+        vehiculos === null
           ? "—"
-          : resumen?.vehiculoMayorKilometraje
-            ? `${FORMATO_NUMERO.format(
-                resumen.vehiculoMayorKilometraje.kilometraje
-              )} km`
-            : "—",
+          : FORMATO_NUMERO.format(vehiculosEnTaller.length),
       detalle:
-        resumen?.vehiculoMayorKilometraje === null
-          ? "Sin lecturas registradas"
-          : "Última lectura registrada",
-      icono: Gauge,
+        vehiculos === null
+          ? "Cargando inventario"
+          : `${vehiculosEnMantenimiento.length} en mantenimiento · ${vehiculosEnPintura.length} en pintura`,
+      icono: Wrench,
       color: "bg-blue-50 text-blue-700",
     },
   ];
@@ -167,7 +204,7 @@ export default function AdminPage() {
     },
     {
       titulo: "Mantenimiento",
-      descripcion: "Consulta gastos, kilometraje y próximos costos de la flota.",
+      descripcion: "Registra mantenimientos y consulta el historial de la flota.",
       href: "/admin/mantenimiento",
       icono: Wrench,
       acento: "bg-amber-50 text-amber-700",
@@ -179,19 +216,37 @@ export default function AdminPage() {
     },
     {
       titulo: "Clientes",
-      descripcion: "La gestión de clientes estará disponible próximamente.",
-      href: "#",
+      descripcion: "Administra los datos y documentos de tus clientes.",
+      href: "/admin/clientes",
       icono: UsersRound,
       acento: "bg-blue-50 text-blue-700",
-      etiqueta: "Próximamente",
-      disponible: false,
+      etiqueta: "Ver clientes",
+      disponible: true,
     },
     {
-      titulo: "Rentas",
-      descripcion: "La gestión de rentas estará disponible próximamente.",
-      href: "#",
-      icono: ClipboardList,
+      titulo: "Contratos",
+      descripcion: "Crea contratos de renta, registra pagos y firmas.",
+      href: "/admin/contratos",
+      icono: FileSignature,
+      acento: "bg-indigo-50 text-indigo-700",
+      etiqueta: "Administrar contratos",
+      disponible: true,
+    },
+    {
+      titulo: "Pagos",
+      descripcion: "Administra los pagos y gastos recurrentes de los vehículos.",
+      href: "/admin/gastos-recurrentes",
+      icono: Receipt,
       acento: "bg-violet-50 text-violet-700",
+      etiqueta: "Gastos recurrentes",
+      disponible: true,
+    },
+    {
+      titulo: "Multas y daño",
+      descripcion: "El registro de multas y daños estará disponible próximamente.",
+      href: "#",
+      icono: CircleAlert,
+      acento: "bg-orange-50 text-orange-700",
       etiqueta: "Próximamente",
       disponible: false,
     },
@@ -201,7 +256,7 @@ export default function AdminPage() {
     <main className="admin-page min-h-screen">
       <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8 sm:py-10">
         <AdminPageHeader
-          title="Panel general"
+          title="Dashboard"
           description="Un vistazo rápido al estado de tu flota y las herramientas para administrarla."
         >
           <Link
@@ -209,7 +264,7 @@ export default function AdminPage() {
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
           >
             <Wrench size={17} />
-            Registrar gasto
+            Registrar mantenimiento
           </Link>
           <Link
             href="/admin/vehiculos/nuevo"
@@ -254,6 +309,121 @@ export default function AdminPage() {
           ))}
         </section>
 
+        <section className="mb-9 grid gap-6 xl:grid-cols-2">
+          <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+              <div>
+                <h2 className="font-extrabold text-gray-950">
+                  Vehículos en taller
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Unidades en mantenimiento mecánico o pintura
+                </p>
+              </div>
+              <Link
+                href="/admin/vehiculos"
+                className="text-sm font-bold text-[#D4202C] hover:underline"
+              >
+                Ver flota
+              </Link>
+            </div>
+            {vehiculos === null ? (
+              <p className="p-5 text-sm text-gray-500">Cargando vehículos...</p>
+            ) : vehiculosEnTaller.length === 0 ? (
+              <p className="p-5 text-sm text-gray-500">
+                No hay vehículos en taller.
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {vehiculosEnTaller.slice(0, 5).map((vehiculo) => (
+                  <li
+                    key={vehiculo.id}
+                    className="flex items-center justify-between gap-4 px-5 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-gray-900">
+                        {vehiculo.marca} {vehiculo.modelo}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {vehiculo.estado === "pintura"
+                          ? "Taller de pintura"
+                          : "En mantenimiento"}{" "}
+                        · {vehiculo.placa || "Sin placa"}
+                        {vehiculo.ultimoKilometraje != null &&
+                          ` · ${FORMATO_NUMERO.format(
+                            vehiculo.ultimoKilometraje
+                          )} km`}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/admin/vehiculos/${vehiculo.id}/editar`}
+                      className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                    >
+                      Ver vehículo
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {vehiculosEnTaller.length > 5 && (
+              <p className="border-t border-gray-100 px-5 py-3 text-xs text-gray-500">
+                y {vehiculosEnTaller.length - 5} más en taller
+              </p>
+            )}
+          </article>
+
+          <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+              <div>
+                <h2 className="font-extrabold text-gray-950">
+                  Mantenimientos recientes
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Últimos registros de la flota
+                </p>
+              </div>
+              <Link
+                href="/admin/mantenimiento"
+                className="text-sm font-bold text-[#D4202C] hover:underline"
+              >
+                Ver historial
+              </Link>
+            </div>
+            {mantenimientos === null ? (
+              <p className="p-5 text-sm text-gray-500">
+                Cargando mantenimientos...
+              </p>
+            ) : mantenimientos.length === 0 ? (
+              <p className="p-5 text-sm text-gray-500">
+                Aún no hay mantenimientos registrados.
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {mantenimientos.map((mantenimiento) => (
+                  <li
+                    key={mantenimiento.id}
+                    className="flex items-center justify-between gap-4 px-5 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-gray-900">
+                        {mantenimiento.vehiculo}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-gray-500">
+                        {mantenimiento.categoria} ·{" "}
+                        {formatFecha(mantenimiento.fecha)} ·{" "}
+                        {FORMATO_NUMERO.format(mantenimiento.kilometraje)} km
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm font-bold text-gray-900">
+                      {FORMATO_DOP.format(mantenimiento.monto)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </section>
+
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#D4202C]">
@@ -270,7 +440,7 @@ export default function AdminPage() {
 
         <section
           aria-label="Opciones de administración"
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
         >
           {accesos.map(
             ({
