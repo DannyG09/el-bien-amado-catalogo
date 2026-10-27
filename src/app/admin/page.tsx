@@ -13,6 +13,7 @@ import {
   FileSignature,
   UsersRound,
   Wrench,
+  CalendarDays,
 } from "lucide-react";
 import AdminPageHeader from "./AdminPageHeader";
 
@@ -47,6 +48,39 @@ type RespuestaMantenimiento = {
   resumen: ResumenMantenimiento;
 };
 
+type MultaDanoReciente = {
+  id: number;
+  vehiculo: string;
+  placa: string | null;
+  cliente: string | null;
+  tipo: "multa" | "dano";
+  fecha: string;
+  monto: number;
+  estado: "pendiente" | "pagado";
+};
+
+type RespuestaMultasDanos = {
+  registros: MultaDanoReciente[];
+  resumen: {
+    montoTotal: number;
+    pendiente: number;
+    pagado: number;
+  };
+};
+
+type EventoAgenda = {
+  origen: "contrato" | "reserva";
+  registroId: number;
+  tipo: "entrega" | "devolucion" | "extension_pendiente";
+  fecha: string;
+  hora: string;
+  cliente: string | null;
+  marca: string;
+  modelo: string;
+  placa: string | null;
+  estado: string;
+};
+
 const FORMATO_DOP = new Intl.NumberFormat("es-DO", {
   style: "currency",
   currency: "DOP",
@@ -64,12 +98,24 @@ function formatFecha(fecha: string) {
   }).format(new Date(Date.UTC(anio, mes - 1, dia)));
 }
 
+function fechaHoyLocal() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+}
+
 export default function AdminPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[] | null>(null);
   const [resumen, setResumen] = useState<ResumenMantenimiento | null>(null);
   const [mantenimientos, setMantenimientos] = useState<
     MantenimientoReciente[] | null
   >(null);
+  const [multasDanos, setMultasDanos] = useState<
+    MultaDanoReciente[] | null
+  >(null);
+  const [resumenMultasDanos, setResumenMultasDanos] = useState<
+    RespuestaMultasDanos["resumen"] | null
+  >(null);
+  const [agenda, setAgenda] = useState<EventoAgenda[] | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -81,6 +127,10 @@ export default function AdminPage() {
         fetch("/api/mantenimientos?pagina=1&limite=5", {
           cache: "no-store",
         }),
+        fetch("/api/multas-danos?pagina=1&limite=5", {
+          cache: "no-store",
+        }),
+        fetch("/api/agenda", { cache: "no-store" }),
       ]);
 
       if (cancelado) return;
@@ -108,6 +158,30 @@ export default function AdminPage() {
           setResumen(datos.resumen);
           setMantenimientos(datos.registros);
         }
+      }
+
+      const respuestaMultasDanos = resultados[2];
+      if (respuestaMultasDanos.status === "rejected") {
+        errores.push("No se pudo cargar el resumen de multas y daños.");
+      } else if (!respuestaMultasDanos.value.ok) {
+        errores.push("No se pudo cargar el resumen de multas y daños.");
+      } else {
+        const datos = (await respuestaMultasDanos.value.json()) as
+          RespuestaMultasDanos;
+        if (!cancelado) {
+          setResumenMultasDanos(datos.resumen);
+          setMultasDanos(datos.registros);
+        }
+      }
+
+      const respuestaAgenda = resultados[3];
+      if (respuestaAgenda.status === "rejected") {
+        errores.push("No se pudo cargar la agenda de entregas y devoluciones.");
+      } else if (!respuestaAgenda.value.ok) {
+        errores.push("No se pudo cargar la agenda de entregas y devoluciones.");
+      } else {
+        const datos = (await respuestaAgenda.value.json()) as EventoAgenda[];
+        if (!cancelado) setAgenda(datos);
       }
 
       if (!cancelado && errores.length > 0) setError(errores.join(" "));
@@ -190,6 +264,19 @@ export default function AdminPage() {
       icono: Wrench,
       color: "bg-blue-50 text-blue-700",
     },
+    {
+      label: "Multas y daños pendientes",
+      valor:
+        resumenMultasDanos === null
+          ? "—"
+          : FORMATO_DOP.format(resumenMultasDanos.pendiente),
+      detalle:
+        resumenMultasDanos === null
+          ? "Cargando registros"
+          : `${FORMATO_DOP.format(resumenMultasDanos.pagado)} pagados`,
+      icono: CircleAlert,
+      color: "bg-orange-50 text-orange-700",
+    },
   ];
 
   const accesos = [
@@ -233,6 +320,15 @@ export default function AdminPage() {
       disponible: true,
     },
     {
+      titulo: "Reservas",
+      descripcion: "Bloquea vehículos por fecha y administra la disponibilidad.",
+      href: "/admin/reservas",
+      icono: CalendarDays,
+      acento: "bg-cyan-50 text-cyan-700",
+      etiqueta: "Ver reservas",
+      disponible: true,
+    },
+    {
       titulo: "Pagos",
       descripcion: "Administra los pagos y gastos recurrentes de los vehículos.",
       href: "/admin/gastos-recurrentes",
@@ -243,12 +339,15 @@ export default function AdminPage() {
     },
     {
       titulo: "Multas y daño",
-      descripcion: "El registro de multas y daños estará disponible próximamente.",
-      href: "#",
+      descripcion: "Registra incidentes, evidencia y seguimiento de pagos.",
+      href: "/admin/multas-danos",
       icono: CircleAlert,
       acento: "bg-orange-50 text-orange-700",
-      etiqueta: "Próximamente",
-      disponible: false,
+      etiqueta:
+        resumenMultasDanos === null
+          ? "Ver registros"
+          : `${FORMATO_DOP.format(resumenMultasDanos.pendiente)} pendiente`,
+      disponible: true,
     },
   ];
 
@@ -265,6 +364,20 @@ export default function AdminPage() {
           >
             <Wrench size={17} />
             Registrar mantenimiento
+          </Link>
+          <Link
+            href="/admin/reservas"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-4 py-3 text-sm font-bold text-cyan-800 transition hover:bg-cyan-50"
+          >
+            <CalendarDays size={17} />
+            Nueva reserva
+          </Link>
+          <Link
+            href="/admin/multas-danos"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold text-orange-800 transition hover:bg-orange-50"
+          >
+            <CircleAlert size={17} />
+            Registrar multa o daño
           </Link>
           <Link
             href="/admin/vehiculos/nuevo"
@@ -286,7 +399,7 @@ export default function AdminPage() {
 
         <section
           aria-label="Indicadores de la flota"
-          className="mb-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          className="mb-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
         >
           {estadisticas.map(({ label, valor, detalle, icono: Icon, color }) => (
             <article
@@ -307,6 +420,85 @@ export default function AdminPage() {
               <p className="mt-1 text-xs text-gray-500">{detalle}</p>
             </article>
           ))}
+        </section>
+
+        <section className="mb-9 overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+            <div>
+              <h2 className="font-extrabold text-gray-950">
+                Próximas entregas y devoluciones
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Reservas confirmadas, contratos activos y extensiones pendientes
+              </p>
+            </div>
+            <Link
+              href="/admin/reservas"
+              className="text-sm font-bold text-[#D4202C] hover:underline"
+            >
+              Administrar reservas
+            </Link>
+          </div>
+          {agenda === null ? (
+            <p className="p-5 text-sm text-gray-500">Cargando agenda...</p>
+          ) : agenda.length === 0 ? (
+            <p className="p-5 text-sm text-gray-500">
+              No hay movimientos próximos ni devoluciones vencidas.
+            </p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {agenda.map((evento, indice) => {
+                const vencido =
+                  evento.tipo === "devolucion" &&
+                  evento.fecha < fechaHoyLocal();
+                const titulo =
+                  evento.tipo === "entrega"
+                    ? "Entrega"
+                    : evento.tipo === "extension_pendiente"
+                      ? "Extensión por aprobar"
+                      : vencido
+                        ? "Devolución vencida"
+                        : "Devolución";
+                const href =
+                  evento.origen === "contrato"
+                    ? `/admin/contratos/${evento.registroId}`
+                    : "/admin/reservas";
+                return (
+                  <li
+                    key={`${evento.origen}-${evento.registroId}-${evento.tipo}-${indice}`}
+                    className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900">
+                        <span
+                          className={
+                            vencido
+                              ? "mr-2 rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold uppercase text-red-700"
+                              : "mr-2 rounded-full bg-cyan-50 px-2 py-1 text-[10px] font-bold uppercase text-cyan-800"
+                          }
+                        >
+                          {titulo}
+                        </span>
+                        {evento.marca} {evento.modelo}
+                        {evento.placa ? ` · ${evento.placa}` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {formatFecha(evento.fecha)} · {evento.hora}
+                        {evento.cliente ? ` · ${evento.cliente}` : ""}
+                        {evento.origen === "reserva" ? " · Reserva" : ""}
+                      </p>
+                    </div>
+                    <Link
+                      href={href}
+                      className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                    >
+                      Ver detalle
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
 
         <section className="mb-9 grid gap-6 xl:grid-cols-2">
@@ -422,6 +614,68 @@ export default function AdminPage() {
               </ul>
             )}
           </article>
+        </section>
+
+        <section className="mb-9 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+            <div>
+              <h2 className="font-extrabold text-gray-950">
+                Multas y daños recientes
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Últimos incidentes y su estado de pago
+              </p>
+            </div>
+            <Link
+              href="/admin/multas-danos"
+              className="text-sm font-bold text-[#D4202C] hover:underline"
+            >
+              Ver historial
+            </Link>
+          </div>
+          {multasDanos === null ? (
+            <p className="p-5 text-sm text-gray-500">
+              Cargando multas y daños...
+            </p>
+          ) : multasDanos.length === 0 ? (
+            <p className="p-5 text-sm text-gray-500">
+              Aún no hay multas o daños registrados.
+            </p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {multasDanos.map((registro) => (
+                <li
+                  key={registro.id}
+                  className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-gray-900">
+                      {registro.tipo === "multa" ? "Multa" : "Daño"} ·{" "}
+                      {registro.vehiculo} · {registro.placa || "Sin placa"}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-gray-500">
+                      {formatFecha(registro.fecha)}
+                      {registro.cliente ? ` · ${registro.cliente}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                        registro.estado === "pagado"
+                          ? "bg-green-50 text-green-800"
+                          : "bg-amber-50 text-amber-800"
+                      }`}
+                    >
+                      {registro.estado === "pagado" ? "Pagado" : "Pendiente"}
+                    </span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {FORMATO_DOP.format(registro.monto)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <div className="mb-4 flex items-end justify-between gap-4">

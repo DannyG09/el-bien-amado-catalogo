@@ -140,6 +140,10 @@ const TEXTOS = {
     vehiclesAvailable: "vehículos disponibles",
     search: "Buscar por marca, modelo, color o año...",
     onlyAvailable: "Solo disponibles",
+    pickupDate: "Fecha de entrega",
+    returnDate: "Fecha de devolución",
+    dateRangeHint: "Elige ambas fechas para mostrar solo los vehículos disponibles en todo el período.",
+    invalidDateRange: "La fecha de devolución no puede ser anterior a la entrega.",
     filters: "Filtros",
     sort: "Ordenar por",
     sortOptions: ["Más recientes", "Precio: menor a mayor", "Precio: mayor a menor", "Año: más nuevo primero", "Marca: A-Z"],
@@ -204,6 +208,10 @@ const TEXTOS = {
     vehiclesAvailable: "vehicles available",
     search: "Search by make, model, color, or year...",
     onlyAvailable: "Available only",
+    pickupDate: "Pickup date",
+    returnDate: "Return date",
+    dateRangeHint: "Choose both dates to show vehicles available for the entire period.",
+    invalidDateRange: "The return date cannot be before pickup.",
     filters: "Filters",
     sort: "Sort by",
     sortOptions: ["Newest", "Price: low to high", "Price: high to low", "Year: newest first", "Make: A-Z"],
@@ -288,8 +296,18 @@ function normalizarVehiculo(datos: unknown): Vehiculo {
   };
 }
 
-async function obtenerVehiculos(signal?: AbortSignal): Promise<Vehiculo[]> {
-  const response = await fetch("/api/vehiculos", { signal });
+async function obtenerVehiculos(
+  signal?: AbortSignal,
+  fechaInicio?: string,
+  fechaFin?: string
+): Promise<Vehiculo[]> {
+  const parametros = new URLSearchParams();
+  if (fechaInicio && fechaFin) {
+    parametros.set("fechaInicio", fechaInicio);
+    parametros.set("fechaFin", fechaFin);
+  }
+  const query = parametros.size > 0 ? `?${parametros.toString()}` : "";
+  const response = await fetch(`/api/vehiculos${query}`, { signal });
 
   if (!response.ok) {
     throw new Error("Error al obtener vehículos");
@@ -321,8 +339,15 @@ export default function Home() {
   const [seguroFiltro, setSeguroFiltro] = useState("todos");
   const [precioMin, setPrecioMin] = useState("");
   const [precioMax, setPrecioMax] = useState("");
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const texto = TEXTOS[idioma];
+  const rangoFechasInvalido =
+    Boolean(fechaInicio && fechaFin) && fechaFin < fechaInicio;
+  const errorCatalogo = rangoFechasInvalido
+    ? texto.invalidDateRange
+    : errorCarga;
 
   useEffect(() => {
     document.documentElement.lang = idioma;
@@ -330,8 +355,12 @@ export default function Home() {
 
   useEffect(() => {
     const controller = new AbortController();
-    obtenerVehiculos(controller.signal)
-      .then((lista) => setVehiculos(lista))
+    if (rangoFechasInvalido) return () => controller.abort();
+    obtenerVehiculos(controller.signal, fechaInicio, fechaFin)
+      .then((lista) => {
+        setVehiculos(lista);
+        setErrorCarga(null);
+      })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
 
@@ -347,7 +376,7 @@ export default function Home() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [fechaInicio, fechaFin, rangoFechasInvalido]);
 
   const marcas = useMemo(
     () => Array.from(new Set(vehiculos.map((v) => v.marca))).sort(),
@@ -366,7 +395,9 @@ export default function Home() {
     marcaFiltro !== "todas" ||
     seguroFiltro !== "todos" ||
     precioMin !== "" ||
-    precioMax !== "";
+    precioMax !== "" ||
+    fechaInicio !== "" ||
+    fechaFin !== "";
 
   function limpiarFiltros() {
     setPaginaActual(1);
@@ -377,9 +408,12 @@ export default function Home() {
     setSeguroFiltro("todos");
     setPrecioMin("");
     setPrecioMax("");
+    setFechaInicio("");
+    setFechaFin("");
   }
 
   const filtrados = useMemo(() => {
+    if (rangoFechasInvalido) return [];
     const texto = busqueda.trim().toLowerCase();
     const min = precioMin === "" ? null : Number(precioMin);
     const max = precioMax === "" ? null : Number(precioMax);
@@ -430,6 +464,7 @@ export default function Home() {
     seguroFiltro,
     precioMin,
     precioMax,
+    rangoFechasInvalido,
   ]);
 
   const totalPaginas = Math.ceil(filtrados.length / vehiculosPorPagina);
@@ -654,7 +689,7 @@ export default function Home() {
           </div>
 
           {/* FILTROS */}
-          {!cargando && vehiculos.length > 0 && (
+          {(!cargando || rangoFechasInvalido) && (
             <div className="mb-10 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 sm:p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="relative flex-1">
@@ -708,6 +743,43 @@ export default function Home() {
                     {texto.filters}
                   </button>
                 </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-gray-500">
+                    {texto.pickupDate}
+                  </span>
+                  <input
+                    type="date"
+                    value={fechaInicio}
+                    onChange={(event) => {
+                      setPaginaActual(1);
+                      setErrorCarga(null);
+                      setFechaInicio(event.target.value);
+                    }}
+                    className={campoClase}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-gray-500">
+                    {texto.returnDate}
+                  </span>
+                  <input
+                    type="date"
+                    min={fechaInicio || undefined}
+                    value={fechaFin}
+                    onChange={(event) => {
+                      setPaginaActual(1);
+                      setErrorCarga(null);
+                      setFechaFin(event.target.value);
+                    }}
+                    className={campoClase}
+                  />
+                </label>
+                <p className="text-xs text-gray-500 sm:col-span-2">
+                  {texto.dateRangeHint}
+                </p>
               </div>
 
               {mostrarFiltros && (
@@ -830,16 +902,7 @@ export default function Home() {
             </div>
           )}
 
-          {cargando ? (
-            <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="h-[470px] animate-pulse rounded-2xl bg-gray-200"
-                />
-              ))}
-            </div>
-          ) : errorCarga ? (
+          {errorCatalogo ? (
             <div
               role="alert"
               className="rounded-2xl border border-red-200 bg-white p-10 text-center"
@@ -848,27 +911,38 @@ export default function Home() {
                 {texto.catalogLoadFailed}
               </h3>
               <p className="mt-2 text-gray-600">
-                {idioma === "en" ? texto.loadError : errorCarga}
+                {idioma === "en" && !rangoFechasInvalido
+                  ? texto.loadError
+                  : errorCatalogo}
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorCarga(null);
-                  setCargando(true);
-                  obtenerVehiculos()
-                    .then((lista) => setVehiculos(lista))
-                    .catch((error: unknown) => {
-                      console.error("Error al cargar vehículos:", error);
-                      setErrorCarga(
-                        "No pudimos cargar los vehículos. Verifica tu conexión e inténtalo de nuevo."
-                      );
-                    })
-                    .finally(() => setCargando(false));
-                }}
-                className="mt-6 rounded-lg bg-[#D4202C] px-6 py-3 text-sm font-bold text-white transition hover:bg-black"
-              >
-                {texto.retry}
-              </button>
+              {!rangoFechasInvalido && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorCarga(null);
+                    obtenerVehiculos(undefined, fechaInicio, fechaFin)
+                      .then((lista) => setVehiculos(lista))
+                      .catch((error: unknown) => {
+                        console.error("Error al cargar vehículos:", error);
+                        setErrorCarga(
+                          "No pudimos cargar los vehículos. Verifica tu conexión e inténtalo de nuevo."
+                        );
+                      });
+                  }}
+                  className="mt-6 rounded-lg bg-[#D4202C] px-6 py-3 text-sm font-bold text-white transition hover:bg-black"
+                >
+                  {texto.retry}
+                </button>
+              )}
+            </div>
+          ) : cargando ? (
+            <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-[470px] animate-pulse rounded-2xl bg-gray-200"
+                />
+              ))}
             </div>
           ) : vehiculos.length === 0 ? (
             <div className="rounded-2xl border bg-white p-16 text-center">
@@ -906,6 +980,8 @@ export default function Home() {
                   key={vehiculo.id}
                   vehiculo={vehiculo}
                   idioma={idioma}
+                  fechaInicio={fechaInicio}
+                  fechaFin={fechaFin}
                 />
               ))}
             </div>

@@ -6,9 +6,22 @@ import { traducirTipoSeguro, type Idioma } from "../lib/idioma";
 type VehicleCardProps = {
   vehiculo: Vehiculo;
   idioma: Idioma;
+  fechaInicio?: string;
+  fechaFin?: string;
 };
 
-export default function VehicleCard({ vehiculo, idioma }: VehicleCardProps) {
+export default function VehicleCard({
+  vehiculo,
+  idioma,
+  fechaInicio,
+  fechaFin,
+}: VehicleCardProps) {
+  const parametros = new URLSearchParams();
+  if (fechaInicio && fechaFin) {
+    parametros.set("fechaInicio", fechaInicio);
+    parametros.set("fechaFin", fechaFin);
+  }
+  const consultaFechas = parametros.size > 0 ? `?${parametros.toString()}` : "";
   const texto =
     idioma === "en"
       ? {
@@ -96,7 +109,7 @@ export default function VehicleCard({ vehiculo, idioma }: VehicleCardProps) {
 
         <div className="mt-6 grid grid-cols-2 gap-3">
           <a
-            href={`/vehiculos/${vehiculo.id}`}
+            href={`/vehiculos/${vehiculo.id}${consultaFechas}`}
             className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-black px-2 py-3.5 text-sm font-bold text-black transition hover:bg-black hover:text-white dark:border-gray-300 dark:text-gray-100 dark:hover:bg-gray-100 dark:hover:text-gray-900"
           >
             {texto.details}
@@ -105,7 +118,7 @@ export default function VehicleCard({ vehiculo, idioma }: VehicleCardProps) {
 
           {vehiculo.disponible ? (
             <a
-              href={`/vehiculos/${vehiculo.id}#solicitar-reserva`}
+              href={`/vehiculos/${vehiculo.id}${consultaFechas}#solicitar-reserva`}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#D4202C] px-2 py-3.5 text-sm font-bold text-white transition hover:bg-black"
             >
               <CalendarDays size={18} />

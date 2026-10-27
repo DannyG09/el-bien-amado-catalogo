@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { getConnection } from "../../lib/db";
 import { isAdminAuthenticated } from "../../lib/auth";
 import { validarNuevoContrato } from "../../lib/contratos";
+import { condicionDisponibilidadFechas } from "../../lib/disponibilidad-vehiculos";
 
 export const runtime = "nodejs";
 
@@ -105,12 +106,7 @@ export async function POST(request: Request) {
         [datos.clienteId]
       ),
       client.query(
-        `SELECT id, estado, marca, modelo, anio, placa,
-                EXISTS (
-                  SELECT 1 FROM public.contratos AS c
-                  WHERE c.vehiculo_id = vehiculos.id
-                    AND c.estado IN ('pendiente_firma', 'activo')
-                ) AS "tieneContratoActivo"
+        `SELECT id, estado, marca, modelo, anio, placa
          FROM public.vehiculos WHERE id = $1 FOR UPDATE`,
         [datos.vehiculoId]
       ),
@@ -134,13 +130,17 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
-    if (
-      vehiculo.rows[0].estado !== "disponible" ||
-      vehiculo.rows[0].tieneContratoActivo
-    ) {
+    const disponibilidad = await client.query(
+      `SELECT v.id
+       FROM public.vehiculos AS v
+       WHERE v.id = $1
+         AND ${condicionDisponibilidadFechas("v", "$2", "$3")}`,
+      [datos.vehiculoId, datos.fechaInicio, datos.fechaFin]
+    );
+    if (disponibilidad.rows.length === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json(
-        { error: "El vehículo ya no está disponible para crear el contrato." },
+        { error: "El vehículo no está disponible durante esas fechas." },
         { status: 409 }
       );
     }
@@ -205,11 +205,6 @@ export async function POST(request: Request) {
     if (creado.rows.length === 0) {
       throw new Error("No se pudo asociar el contrato a los datos seleccionados.");
     }
-    await client.query(
-      `UPDATE public.vehiculos SET estado = 'reservado', disponible = FALSE
-       WHERE id = $1`,
-      [datos.vehiculoId]
-    );
     await client.query("COMMIT");
     return NextResponse.json(creado.rows[0], { status: 201 });
   } catch (error) {

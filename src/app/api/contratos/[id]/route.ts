@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { getConnection } from "../../../lib/db";
 import { isAdminAuthenticated } from "../../../lib/auth";
 import { validarNuevoContrato } from "../../../lib/contratos";
+import { condicionDisponibilidadFechas } from "../../../lib/disponibilidad-vehiculos";
 
 export const runtime = "nodejs";
 
@@ -154,6 +155,33 @@ export async function PUT(request: Request, { params }: Params) {
         { status: 400 }
       );
     }
+    const vehiculo = await client.query(
+      "SELECT id FROM public.vehiculos WHERE id = $1 FOR UPDATE",
+      [Number(actual.rows[0].vehiculoId)]
+    );
+    if (vehiculo.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "El vehículo del contrato no existe." }, { status: 404 });
+    }
+    const disponibilidad = await client.query(
+      `SELECT v.id
+       FROM public.vehiculos AS v
+       WHERE v.id = $1
+         AND ${condicionDisponibilidadFechas("v", "$2", "$3", "$4")}`,
+      [
+        Number(actual.rows[0].vehiculoId),
+        datos.fechaInicio,
+        datos.fechaFin,
+        id,
+      ]
+    );
+    if (disponibilidad.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json(
+        { error: "El vehículo ya no está disponible durante esas fechas." },
+        { status: 409 }
+      );
+    }
     const pagosActuales = await client.query(
       `SELECT
          COALESCE(SUM(monto) FILTER (WHERE tipo = 'renta'), 0) AS pagado,
@@ -262,17 +290,10 @@ export async function PATCH(request: Request, { params }: Params) {
         { status: 409 }
       );
     }
-    const vehiculoId = Number(actual.rows[0].vehiculoId);
     await client.query(
       `UPDATE public.contratos SET estado = $2, actualizado_en = NOW()
        WHERE id = $1`,
       [id, estado]
-    );
-    await client.query(
-      `UPDATE public.vehiculos
-       SET estado = 'disponible', disponible = TRUE
-       WHERE id = $1 AND estado IN ('reservado', 'rentado')`,
-      [vehiculoId]
     );
     await client.query("COMMIT");
     return NextResponse.json({ mensaje: "Estado del contrato actualizado." });

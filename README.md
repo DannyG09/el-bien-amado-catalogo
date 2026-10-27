@@ -86,6 +86,8 @@ La app espera estas tablas (nombres de columnas según las consultas del código
 - **`vehiculo_gastos_recurrentes`**: pagos periódicos asociados a cada vehículo.
 - **`clientes`** y **`cliente_documentos`**: datos personales y archivos privados de clientes.
 - **`contratos`**, **`contrato_pagos`** y **`contrato_configuracion`**: contratos, pagos, firmas y datos/condiciones empresariales.
+- **`multas_danos`** y **`multa_dano_fotos`**: incidentes de vehículos, cobros y evidencia fotográfica.
+- **`reservas_vehiculos`** y **`contrato_extensiones`**: disponibilidad por fechas, reservas y extensiones de contratos.
 
 Ejecuta las migraciones en orden:
 
@@ -97,6 +99,12 @@ Ejecuta las migraciones en orden:
 6. [`database/migrations/006_estado_taller_pintura.sql`](./database/migrations/006_estado_taller_pintura.sql) permite registrar el nuevo estado de taller de pintura. Ejecútala incluso si ya aplicaste la migración 005.
 7. [`database/migrations/007_clientes.sql`](./database/migrations/007_clientes.sql) crea las tablas para registrar clientes y sus documentos.
 8. [`database/migrations/008_contratos.sql`](./database/migrations/008_contratos.sql) crea contratos, pagos y configuración, y agrega el estado reservado a los vehículos. Ejecútala después de la migración 007.
+9. [`database/migrations/009_multas_danos.sql`](./database/migrations/009_multas_danos.sql) crea el registro de multas, daños y sus fotografías.
+10. [`database/migrations/010_reservas_extensiones.sql`](./database/migrations/010_reservas_extensiones.sql) crea las reservas por fecha y el historial de extensiones. Ejecútala después de la migración 009.
+
+Las reservas y contratos bloquean las fechas de entrega y devolución inclusive.
+Las extensiones propuestas no cambian el contrato firmado y solo se aplican
+cuando administración confirma que el cliente las aceptó.
 
 Los documentos de clientes se guardan como archivos autenticados en Cloudinary y
 se sirven únicamente a sesiones administrativas. Se aceptan imágenes JPG, PNG,

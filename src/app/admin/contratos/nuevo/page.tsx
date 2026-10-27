@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileSignature } from "lucide-react";
@@ -34,6 +34,7 @@ export default function NuevoContratoPage() {
   const [vehiculos, setVehiculos] = useState<VehiculoOpcion[]>([]);
   const [clienteId, setClienteId] = useState("");
   const [vehiculoId, setVehiculoId] = useState("");
+  const vehiculoIdActual = useRef("");
   const [moneda, setMoneda] = useState<"DOP" | "USD">("DOP");
   const [fechaInicio, setFechaInicio] = useState(FECHA_HOY);
   const [fechaFin, setFechaFin] = useState(FECHA_HOY);
@@ -53,8 +54,24 @@ export default function NuevoContratoPage() {
   useEffect(() => {
     let cancelado = false;
     async function cargarOpciones() {
+      if (fechaInicio && fechaFin && fechaFin < fechaInicio) {
+        setVehiculos([]);
+        vehiculoIdActual.current = "";
+        setVehiculoId("");
+        setPrecioDia("");
+        setError("La fecha de devolución no puede ser anterior a la entrega.");
+        setCargando(false);
+        return;
+      }
+
       try {
-        const respuesta = await fetch("/api/contratos/opciones", {
+        const parametros = new URLSearchParams();
+        if (fechaInicio && fechaFin) {
+          parametros.set("fechaInicio", fechaInicio);
+          parametros.set("fechaFin", fechaFin);
+        }
+        const consulta = parametros.size > 0 ? `?${parametros.toString()}` : "";
+        const respuesta = await fetch(`/api/contratos/opciones${consulta}`, {
           cache: "no-store",
         });
         const resultado = (await respuesta.json()) as
@@ -70,6 +87,16 @@ export default function NuevoContratoPage() {
         if (!cancelado) {
           setClientes(resultado.clientes);
           setVehiculos(resultado.vehiculos);
+          if (
+            vehiculoIdActual.current &&
+            !resultado.vehiculos.some(
+              (vehiculo) => String(vehiculo.id) === vehiculoIdActual.current
+            )
+          ) {
+            vehiculoIdActual.current = "";
+            setVehiculoId("");
+            setPrecioDia("");
+          }
           const clientePreseleccionado = new URLSearchParams(
             window.location.search
           ).get("clienteId");
@@ -79,7 +106,7 @@ export default function NuevoContratoPage() {
               String(cliente.id) === clientePreseleccionado
             )
           ) {
-            setClienteId(clientePreseleccionado);
+            setClienteId((actual) => actual || clientePreseleccionado);
           }
         }
       } catch (errorCarga) {
@@ -99,7 +126,7 @@ export default function NuevoContratoPage() {
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [fechaInicio, fechaFin]);
 
   const vehiculoSeleccionado = vehiculos.find(
     (vehiculo) => String(vehiculo.id) === vehiculoId
@@ -236,6 +263,7 @@ export default function NuevoContratoPage() {
                   value={vehiculoId}
                   onChange={(evento) => {
                     const valor = evento.target.value;
+                    vehiculoIdActual.current = valor;
                     setVehiculoId(valor);
                     const elegido = vehiculos.find(
                       (vehiculo) => String(vehiculo.id) === valor
@@ -263,8 +291,7 @@ export default function NuevoContratoPage() {
               )}
               {vehiculoSeleccionado && (
                 <p className="text-xs text-gray-500 sm:col-span-2">
-                  Al crear el contrato, el vehículo quedará reservado hasta que se registre
-                  la firma.
+                  La disponibilidad se valida para el rango elegido y se vuelve a revisar al crear y firmar el contrato.
                 </p>
               )}
             </section>

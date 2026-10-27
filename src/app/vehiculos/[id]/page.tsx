@@ -33,6 +33,11 @@ type Foto = {
 };
 
 const WHATSAPP_NUMERO = "18299212615";
+const FECHA_MINIMA = (() => {
+  const fecha = new Date();
+  fecha.setMinutes(fecha.getMinutes() - fecha.getTimezoneOffset());
+  return fecha.toISOString().slice(0, 10);
+})();
 const CLASE_CAMPO =
   "w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-[#D4202C] focus:ring-2 focus:ring-[#D4202C]/20";
 
@@ -81,7 +86,7 @@ const TEXTOS = {
     dateInstructions: "Indica las fechas y envía la consulta por WhatsApp.",
     pickupDate: "Fecha de recogida",
     returnDate: "Fecha de devolución",
-    invalidDates: "La fecha de devolución debe ser posterior a la recogida.",
+    invalidDates: "La devolución debe ser el mismo día de la recogida o después.",
     askOnWhatsApp: "Consultar por WhatsApp",
     unavailableForBooking:
       "Este vehículo no está disponible para reservar actualmente.",
@@ -137,7 +142,7 @@ const TEXTOS = {
     dateInstructions: "Choose your dates and send your inquiry via WhatsApp.",
     pickupDate: "Pickup date",
     returnDate: "Return date",
-    invalidDates: "The return date must be after the pickup date.",
+    invalidDates: "The return date must be the same day as pickup or later.",
     askOnWhatsApp: "Inquire on WhatsApp",
     unavailableForBooking:
       "This vehicle is currently unavailable for booking.",
@@ -265,7 +270,23 @@ export default function DetalleVehiculoPage() {
         setCargando(true);
         setError(null);
 
-        const respuestaVehiculos = await fetch("/api/vehiculos");
+        const parametros = new URLSearchParams(window.location.search);
+        const fechaInicioUrl = parametros.get("fechaInicio") ?? "";
+        const fechaFinUrl = parametros.get("fechaFin") ?? "";
+        if (fechaInicioUrl && fechaFinUrl && fechaFinUrl >= fechaInicioUrl) {
+          setFechaInicio(fechaInicioUrl);
+          setFechaFin(fechaFinUrl);
+        }
+        const consultaFechas =
+          fechaInicioUrl && fechaFinUrl && fechaFinUrl >= fechaInicioUrl
+            ? `?${new URLSearchParams({
+                fechaInicio: fechaInicioUrl,
+                fechaFin: fechaFinUrl,
+              })}`
+            : "";
+        const respuestaVehiculos = await fetch(
+          `/api/vehiculos${consultaFechas}`
+        );
 
         if (!respuestaVehiculos.ok) {
           throw new Error("vehiclesLoadFailed");
@@ -383,17 +404,11 @@ export default function DetalleVehiculoPage() {
     };
   }, [visorAbierto, fotos.length]);
 
-  const fechaMinima = new Date(
-    Date.now() - new Date().getTimezoneOffset() * 60_000
-  )
-    .toISOString()
-    .slice(0, 10);
-
   function solicitarPorWhatsApp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!vehiculo || !vehiculo.disponible) return;
 
-    if (!fechaInicio || !fechaFin || fechaFin <= fechaInicio) {
+    if (!fechaInicio || !fechaFin || fechaFin < fechaInicio) {
       setErrorFechas(true);
       return;
     }
@@ -788,7 +803,7 @@ export default function DetalleVehiculoPage() {
                     <input
                       type="date"
                       required
-                      min={fechaMinima}
+                      min={FECHA_MINIMA}
                       value={fechaInicio}
                       onChange={(event) => {
                         setFechaInicio(event.target.value);
@@ -805,7 +820,7 @@ export default function DetalleVehiculoPage() {
                     <input
                       type="date"
                       required
-                      min={fechaInicio || fechaMinima}
+                      min={fechaInicio || FECHA_MINIMA}
                       value={fechaFin}
                       onChange={(event) => {
                         setFechaFin(event.target.value);

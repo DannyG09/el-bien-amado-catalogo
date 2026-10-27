@@ -23,6 +23,16 @@ type Pago = {
   notas: string | null;
 };
 
+type Extension = {
+  id: number;
+  fechaFinAnterior: string;
+  fechaFinNueva: string;
+  horaDevolucion: string;
+  montoAdicional: number;
+  estado: "pendiente_aprobacion" | "aprobada" | "rechazada";
+  notas: string | null;
+};
+
 type Contrato = {
   id: number;
   clienteId: number;
@@ -74,6 +84,14 @@ function moneda(valor: number, codigo: string) {
   }).format(valor);
 }
 
+function sumarDia(fecha: string) {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const siguiente = new Date(Date.UTC(anio, mes - 1, dia + 1));
+  return `${siguiente.getUTCFullYear()}-${String(
+    siguiente.getUTCMonth() + 1
+  ).padStart(2, "0")}-${String(siguiente.getUTCDate()).padStart(2, "0")}`;
+}
+
 export default function ContratoDetallePage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
@@ -85,6 +103,10 @@ export default function ContratoDetallePage() {
   const [fechaPago, setFechaPago] = useState(FECHA_HOY);
   const [referenciaPago, setReferenciaPago] = useState("");
   const [notasPago, setNotasPago] = useState("");
+  const [extensiones, setExtensiones] = useState<Extension[]>([]);
+  const [fechaFinNueva, setFechaFinNueva] = useState("");
+  const [horaDevolucionNueva, setHoraDevolucionNueva] = useState("09:00");
+  const [notasExtension, setNotasExtension] = useState("");
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -105,13 +127,34 @@ export default function ContratoDetallePage() {
     return resultado;
   }, [id]);
 
+  const obtenerExtensiones = useCallback(async () => {
+    const respuesta = await fetch(`/api/contratos/${id}/extensiones`, {
+      cache: "no-store",
+    });
+    const resultado = (await respuesta.json()) as
+      | Extension[]
+      | { error?: string };
+    if (!respuesta.ok || !Array.isArray(resultado)) {
+      throw new Error(
+        !Array.isArray(resultado)
+          ? resultado.error ?? "No se pudieron cargar las extensiones."
+          : "No se pudieron cargar las extensiones."
+      );
+    }
+    return resultado;
+  }, [id]);
+
   useEffect(() => {
     let cancelado = false;
     async function cargar() {
       try {
-        const resultado = await obtenerContrato();
+        const [resultado, resultadoExtensiones] = await Promise.all([
+          obtenerContrato(),
+          obtenerExtensiones(),
+        ]);
         if (!cancelado) {
           setContrato(resultado);
+          setExtensiones(resultadoExtensiones);
           setError("");
         }
       } catch (errorCarga) {
@@ -131,11 +174,15 @@ export default function ContratoDetallePage() {
     return () => {
       cancelado = true;
     };
-  }, [obtenerContrato]);
+  }, [obtenerContrato, obtenerExtensiones]);
 
   async function recargarContrato() {
-    const resultado = await obtenerContrato();
+    const [resultado, resultadoExtensiones] = await Promise.all([
+      obtenerContrato(),
+      obtenerExtensiones(),
+    ]);
     setContrato(resultado);
+    setExtensiones(resultadoExtensiones);
     setError("");
   }
 
@@ -157,7 +204,9 @@ export default function ContratoDetallePage() {
         throw new Error(resultado.error ?? "No se pudo registrar la firma.");
       }
       setArchivoFirma(null);
-      setMensaje("Firma registrada. El contrato está activo y el vehículo rentado.");
+      setMensaje(
+        "Firma registrada. El contrato está activo y bloquea el vehículo durante las fechas de renta."
+      );
       await recargarContrato();
     } catch (errorFirma) {
       console.error("Error al registrar firma del contrato:", errorFirma);
@@ -218,8 +267,8 @@ export default function ContratoDetallePage() {
       !window.confirm(
         `¿Deseas ${accion} el contrato #${contrato.id}? ${
           estado === "cancelado"
-            ? "El vehículo se liberará si todavía está reservado o rentado."
-            : "El vehículo volverá a estar disponible."
+            ? "El vehículo dejará de estar bloqueado durante este período."
+            : "El contrato dejará de bloquear su rango de fechas."
         }`
       )
     ) {
@@ -238,7 +287,7 @@ export default function ContratoDetallePage() {
       if (!respuesta.ok) {
         throw new Error(resultado.error ?? "No se pudo actualizar el contrato.");
       }
-      setMensaje("El estado del contrato se actualizó y se liberó el vehículo.");
+      setMensaje("El estado del contrato se actualizó.");
       await recargarContrato();
     } catch (errorEstado) {
       console.error("Error al actualizar el estado del contrato:", errorEstado);
@@ -246,6 +295,114 @@ export default function ContratoDetallePage() {
         errorEstado instanceof Error
           ? errorEstado.message
           : "No se pudo actualizar el contrato."
+      );
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const fechaFinVigente =
+    extensiones
+      .filter((extension) => extension.estado === "aprobada")
+      .reduce(
+        (fecha, extension) =>
+          extension.fechaFinNueva > fecha ? extension.fechaFinNueva : fecha,
+        contrato?.fechaFin ?? ""
+      ) || contrato?.fechaFin || "";
+  const fechaMinimaExtension = fechaFinVigente
+    ? sumarDia(fechaFinVigente)
+    : "";
+  const montoEstimadoExtension =
+    contrato && fechaFinNueva && fechaFinNueva > fechaFinVigente
+      ? Math.round(
+          ((new Date(`${fechaFinNueva}T00:00:00Z`).getTime() -
+            new Date(`${fechaFinVigente}T00:00:00Z`).getTime()) /
+            86_400_000) *
+            contrato.precioDia *
+            100
+        ) / 100
+      : null;
+
+  async function registrarExtension(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (!contrato || guardando) return;
+    setGuardando(true);
+    setError("");
+    setMensaje("");
+    try {
+      const respuesta = await fetch(`/api/contratos/${id}/extensiones`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fechaFinNueva,
+          horaDevolucion: horaDevolucionNueva,
+          notas: notasExtension,
+        }),
+      });
+      const resultado = (await respuesta.json()) as { error?: string };
+      if (!respuesta.ok) {
+        throw new Error(resultado.error ?? "No se pudo registrar la extensión.");
+      }
+      setFechaFinNueva("");
+      setNotasExtension("");
+      setMensaje("Extensión registrada y pendiente de aprobación del cliente.");
+      await recargarContrato();
+    } catch (errorExtension) {
+      console.error("Error al registrar extensión:", errorExtension);
+      setError(
+        errorExtension instanceof Error
+          ? errorExtension.message
+          : "No se pudo registrar la extensión."
+      );
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function responderExtension(
+    extension: Extension,
+    estado: "aprobada" | "rechazada"
+  ) {
+    if (guardando) return;
+    if (
+      estado === "aprobada" &&
+      !window.confirm(
+        "Confirma únicamente si el cliente ya aceptó esta extensión. ¿Deseas aprobarla?"
+      )
+    ) {
+      return;
+    }
+    setGuardando(true);
+    setError("");
+    setMensaje("");
+    try {
+      const respuesta = await fetch(
+        `/api/contratos/${id}/extensiones/${extension.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            estado,
+            confirmacionCliente: estado === "aprobada",
+          }),
+        }
+      );
+      const resultado = (await respuesta.json()) as { error?: string };
+      if (!respuesta.ok) {
+        throw new Error(resultado.error ?? "No se pudo responder la extensión.");
+      }
+      setMensaje(
+        estado === "aprobada"
+          ? "Extensión aprobada. La fecha de devolución se actualizó."
+          : "Extensión rechazada."
+      );
+      await recargarContrato();
+    } catch (errorExtension) {
+      console.error("Error al responder extensión:", errorExtension);
+      setError(
+        errorExtension instanceof Error
+          ? errorExtension.message
+          : "No se pudo responder la extensión."
       );
     } finally {
       setGuardando(false);
@@ -326,8 +483,17 @@ export default function ContratoDetallePage() {
               </div>
               <div className="sm:col-span-3">
                 <p className="text-sm font-semibold text-gray-800">
-                  {contrato.fechaInicio} {contrato.horaEntrega} → {contrato.fechaFin}{" "}
-                  {contrato.horaDevolucion}
+                  {contrato.fechaInicio} {contrato.horaEntrega} → {fechaFinVigente}{" "}
+                  {extensiones.find(
+                    (extension) =>
+                      extension.estado === "aprobada" &&
+                      extension.fechaFinNueva === fechaFinVigente
+                  )?.horaDevolucion ?? contrato.horaDevolucion}
+                  {fechaFinVigente !== contrato.fechaFin && (
+                    <span className="ml-2 text-xs font-semibold text-emerald-700">
+                      Fecha extendida; el contrato firmado original se conserva.
+                    </span>
+                  )}
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
                   {contrato.marca} {contrato.modelo} {contrato.anio}
@@ -364,7 +530,7 @@ export default function ContratoDetallePage() {
                     className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                   >
                     <Check size={16} />
-                    Completar y liberar vehículo
+                    Completar contrato
                   </button>
                 )}
                 {(contrato.estado === "pendiente_firma" ||
@@ -389,7 +555,7 @@ export default function ContratoDetallePage() {
                 </h2>
                 <p className="mt-1 text-sm text-amber-900">
                   Después de firmar en papel, carga una foto o escaneo de la firma.
-                  Al registrarla, el contrato se activa y el vehículo pasa a rentado.
+                  Al registrarla, el contrato se activa y bloquea el vehículo durante las fechas indicadas.
                 </p>
                 <form
                   onSubmit={registrarFirma}
@@ -416,6 +582,141 @@ export default function ContratoDetallePage() {
                     {guardando ? "Guardando..." : "Registrar firma"}
                   </button>
                 </form>
+              </section>
+            )}
+
+            {contrato.estado === "activo" && (
+              <section className="rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm sm:p-6">
+                <h2 className="font-extrabold text-gray-950">Extender alquiler</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Registra una propuesta para prolongar el contrato. La extensión no cambia el documento firmado ni entra en vigor hasta confirmar que el cliente la aceptó.
+                </p>
+                <form
+                  onSubmit={registrarExtension}
+                  className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                >
+                  <label className="text-sm font-semibold text-gray-700">
+                    Nueva fecha de devolución *
+                    <input
+                      required
+                      type="date"
+                      min={fechaMinimaExtension}
+                      value={fechaFinNueva}
+                      onChange={(evento) => setFechaFinNueva(evento.target.value)}
+                      className={CAMPO}
+                    />
+                  </label>
+                  {montoEstimadoExtension !== null && (
+                    <p className="self-end pb-2 text-sm text-gray-600">
+                      Cargo adicional estimado: {moneda(montoEstimadoExtension, contrato.moneda)}
+                    </p>
+                  )}
+                  <label className="text-sm font-semibold text-gray-700">
+                    Hora de devolución *
+                    <input
+                      required
+                      type="time"
+                      value={horaDevolucionNueva}
+                      onChange={(evento) =>
+                        setHoraDevolucionNueva(evento.target.value)
+                      }
+                      className={CAMPO}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Notas
+                    <input
+                      maxLength={2000}
+                      value={notasExtension}
+                      onChange={(evento) => setNotasExtension(evento.target.value)}
+                      className={CAMPO}
+                    />
+                  </label>
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <button
+                      type="submit"
+                      disabled={
+                        guardando ||
+                        extensiones.some(
+                          (extension) =>
+                            extension.estado === "pendiente_aprobacion"
+                        )
+                      }
+                      className="rounded-xl bg-cyan-700 px-4 py-3 text-sm font-bold text-white hover:bg-cyan-800 disabled:opacity-50"
+                    >
+                      {guardando ? "Guardando..." : "Registrar propuesta de extensión"}
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-5 border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-bold text-gray-900">
+                    Historial de extensiones
+                  </h3>
+                  {extensiones.length === 0 ? (
+                    <p className="mt-2 text-sm text-gray-500">
+                      Sin extensiones registradas.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 divide-y divide-gray-100">
+                      {extensiones.map((extension) => (
+                        <li
+                          key={extension.id}
+                          className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">
+                              {extension.fechaFinAnterior} → {extension.fechaFinNueva} · {extension.horaDevolucion}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Cargo adicional: {moneda(extension.montoAdicional, contrato.moneda)}
+                              {extension.notas ? ` · ${extension.notas}` : ""}
+                            </p>
+                            <span
+                              className={
+                                extension.estado === "aprobada"
+                                  ? "mt-1 inline-block text-xs font-bold text-emerald-700"
+                                  : extension.estado === "rechazada"
+                                    ? "mt-1 inline-block text-xs font-bold text-gray-500"
+                                    : "mt-1 inline-block text-xs font-bold text-amber-700"
+                              }
+                            >
+                              {extension.estado === "aprobada"
+                                ? "Aprobada"
+                                : extension.estado === "rechazada"
+                                  ? "Rechazada"
+                                  : "Pendiente de aprobación"}
+                            </span>
+                          </div>
+                          {extension.estado === "pendiente_aprobacion" && (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={guardando}
+                                onClick={() =>
+                                  void responderExtension(extension, "aprobada")
+                                }
+                                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                Cliente aceptó
+                              </button>
+                              <button
+                                type="button"
+                                disabled={guardando}
+                                onClick={() =>
+                                  void responderExtension(extension, "rechazada")
+                                }
+                                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                              >
+                                Rechazar
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </section>
             )}
 

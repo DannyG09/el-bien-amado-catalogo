@@ -2,6 +2,10 @@
 import { NextResponse } from "next/server";
 import { getConnection } from "../../lib/db";
 import { isAdminAuthenticated } from "../../lib/auth";
+import {
+  condicionDisponibilidadFechas,
+  validarRangoFechas,
+} from "../../lib/disponibilidad-vehiculos";
 
 export const runtime = "nodejs";
 
@@ -20,7 +24,28 @@ export async function GET(request: Request) {
     const mostrarTodos =
       autorizado &&
       new URL(request.url).searchParams.get("administracion") === "true";
+    const parametros = new URL(request.url).searchParams;
+    const fechaInicio = parametros.get("fechaInicio");
+    const fechaFin = parametros.get("fechaFin");
+    if (
+      (fechaInicio !== null || fechaFin !== null) &&
+      !validarRangoFechas(fechaInicio, fechaFin)
+    ) {
+      return NextResponse.json(
+        { error: "Indica un rango de fechas válido." },
+        { status: 400 }
+      );
+    }
     const pool = await getConnection();
+    const hoy = new Date();
+    const fechaActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+    const fechaConsultaInicio = fechaInicio ?? fechaActual;
+    const fechaConsultaFin = fechaFin ?? fechaConsultaInicio;
+    const condicionFechas = condicionDisponibilidadFechas(
+      "vehiculos",
+      "$2",
+      "$3"
+    );
 
     const result = await pool.query(`
       SELECT
@@ -34,25 +59,65 @@ export async function GET(request: Request) {
         preciodia AS "precioDia",
         imagen,
         descripcion,
-        disponible,
-        estado${
+        ${
+          mostrarTodos
+            ? `CASE
+                 WHEN estado IN ('mantenimiento', 'pintura') THEN estado
+                 WHEN EXISTS (
+                   SELECT 1 FROM public.contratos AS c
+                   WHERE c.vehiculo_id = vehiculos.id
+                     AND c.estado = 'activo'
+                     AND CURRENT_DATE BETWEEN c.fecha_inicio AND COALESCE(
+                       (SELECT MAX(ce.fecha_fin_nueva)
+                        FROM public.contrato_extensiones AS ce
+                        WHERE ce.contrato_id = c.id AND ce.estado = 'aprobada'),
+                       c.fecha_fin
+                     )
+                 ) THEN 'rentado'
+                 WHEN EXISTS (
+                   SELECT 1 FROM public.contratos AS c
+                   WHERE c.vehiculo_id = vehiculos.id
+                     AND c.estado = 'pendiente_firma'
+                     AND CURRENT_DATE BETWEEN c.fecha_inicio AND c.fecha_fin
+                 ) OR EXISTS (
+                   SELECT 1 FROM public.reservas_vehiculos AS rv
+                   WHERE rv.vehiculo_id = vehiculos.id
+                     AND rv.estado = 'confirmada'
+                     AND CURRENT_DATE BETWEEN rv.fecha_inicio AND rv.fecha_fin
+                 ) THEN 'reservado'
+                 ELSE 'disponible'
+               END AS estado,
+               CASE
+                 WHEN estado IN ('mantenimiento', 'pintura') THEN FALSE
+                 WHEN EXISTS (
+                   SELECT 1 FROM public.contratos AS c
+                   WHERE c.vehiculo_id = vehiculos.id
+                     AND c.estado IN ('pendiente_firma', 'activo')
+                     AND CURRENT_DATE BETWEEN c.fecha_inicio AND COALESCE(
+                       (SELECT MAX(ce.fecha_fin_nueva)
+                        FROM public.contrato_extensiones AS ce
+                        WHERE ce.contrato_id = c.id AND ce.estado = 'aprobada'),
+                       c.fecha_fin
+                     )
+                 ) OR EXISTS (
+                   SELECT 1 FROM public.reservas_vehiculos AS rv
+                   WHERE rv.vehiculo_id = vehiculos.id
+                     AND rv.estado = 'confirmada'
+                     AND CURRENT_DATE BETWEEN rv.fecha_inicio AND rv.fecha_fin
+                 ) THEN FALSE
+                 ELSE TRUE
+               END AS disponible`
+            : "TRUE AS disponible, 'disponible' AS estado"
+        }${
           mostrarTodos
             ? `,
         kilometraje AS "ultimoKilometraje"`
             : ""
         }
       FROM vehiculos
-      WHERE $1::boolean OR (
-        estado = 'disponible'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM public.contratos AS c
-          WHERE c.vehiculo_id = vehiculos.id
-            AND c.estado IN ('pendiente_firma', 'activo')
-        )
-      )
+      WHERE $1::boolean OR (${condicionFechas})
       ORDER BY id DESC
-    `, [mostrarTodos]);
+    `, [mostrarTodos, fechaConsultaInicio, fechaConsultaFin]);
 
     const vehiculos = result.rows.map((vehiculo: Record<string, unknown>) => {
       const {

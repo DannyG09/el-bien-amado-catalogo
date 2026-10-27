@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { getConnection } from "../../../../lib/db";
 import { isAdminAuthenticated } from "../../../../lib/auth";
 import { validarImagenFirma } from "../../../../lib/contratos";
+import { condicionDisponibilidadFechas } from "../../../../lib/disponibilidad-vehiculos";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
@@ -38,7 +39,9 @@ export async function POST(request: Request, { params }: Params) {
     client = await pool.connect();
     await client.query("BEGIN");
     const contrato = await client.query(
-      `SELECT estado, vehiculo_id AS "vehiculoId", firmado_en AS "firmadoEn"
+      `SELECT estado, vehiculo_id AS "vehiculoId", firmado_en AS "firmadoEn",
+              fecha_inicio::text AS "fechaInicio",
+              fecha_fin::text AS "fechaFin"
        FROM public.contratos WHERE id = $1 FOR UPDATE`,
       [id]
     );
@@ -55,13 +58,27 @@ export async function POST(request: Request, { params }: Params) {
     }
     const vehiculoId = Number(contrato.rows[0].vehiculoId);
     const vehiculo = await client.query(
-      "SELECT estado FROM public.vehiculos WHERE id = $1 FOR UPDATE",
-      [vehiculoId]
+      `SELECT v.id
+       FROM public.vehiculos AS v
+       WHERE v.id = $1
+         AND ${condicionDisponibilidadFechas(
+           "v",
+           "$2",
+           "$3",
+           "$4"
+         )}
+       FOR UPDATE`,
+      [
+        vehiculoId,
+        contrato.rows[0].fechaInicio,
+        contrato.rows[0].fechaFin,
+        id,
+      ]
     );
-    if (vehiculo.rows[0]?.estado !== "reservado") {
+    if (vehiculo.rows.length === 0) {
       await client.query("ROLLBACK");
       return NextResponse.json(
-        { error: "El vehículo ya no está reservado para este contrato." },
+        { error: "El vehículo ya no está disponible para esas fechas." },
         { status: 409 }
       );
     }
@@ -77,12 +94,6 @@ export async function POST(request: Request, { params }: Params) {
         archivo.type,
         archivo.name.replace(/[\\/\r\n\0]/g, "_").slice(0, 255),
       ]
-    );
-    await client.query(
-      `UPDATE public.vehiculos
-       SET estado = 'rentado', disponible = FALSE
-       WHERE id = $1 AND estado = 'reservado'`,
-      [vehiculoId]
     );
     await client.query("COMMIT");
     return NextResponse.json({ mensaje: "Firma registrada y contrato activado." });

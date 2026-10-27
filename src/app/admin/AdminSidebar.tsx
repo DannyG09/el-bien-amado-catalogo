@@ -13,6 +13,7 @@ import {
   Wrench,
   WalletCards,
   FileSignature,
+  CalendarDays,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -49,6 +50,12 @@ const NAV_GROUPS = [
         available: true,
       },
       {
+        label: "Reservas",
+        href: "/admin/reservas",
+        icon: CalendarDays,
+        available: true,
+      },
+      {
         label: "Pagos",
         href: "/admin/gastos-recurrentes",
         icon: WalletCards,
@@ -69,7 +76,7 @@ const NAV_GROUPS = [
         label: "Multas y daño",
         href: "/admin/multas-danos",
         icon: AlertTriangle,
-        available: false,
+        available: true,
       },
     ],
   },
