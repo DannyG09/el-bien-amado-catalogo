@@ -87,3 +87,53 @@ export async function subirFotoCloudinary(
     publicId: resultado.public_id,
   };
 }
+
+
+export async function subirMatriculaCloudinary(
+  archivo: File,
+  vehiculoId: number
+): Promise<void> {
+  const formatosPermitidos = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+  ];
+
+  if (!formatosPermitidos.includes(archivo.type)) {
+    throw new Error(
+      "Solo se permiten archivos JPG, PNG, WEBP o PDF."
+    );
+  }
+
+  const MAX_SIZE = 5 * 1024 * 1024;
+
+  if (archivo.size === 0 || archivo.size > MAX_SIZE) {
+    throw new Error(
+      "El archivo debe tener un tamaño máximo de 5 MB."
+    );
+  }
+
+  if (!Number.isSafeInteger(vehiculoId) || vehiculoId <= 0) {
+    throw new Error("El vehículo seleccionado no es válido.");
+  }
+
+  const formData = new FormData();
+
+  formData.append("archivo", archivo);
+  formData.append("vehiculoId", String(vehiculoId));
+
+  const respuesta = await fetch("/api/matriculas/subir", {
+    method: "POST",
+    body: formData,
+    credentials: "same-origin",
+  });
+
+  const resultado = await respuesta.json();
+
+  if (!respuesta.ok) {
+    throw new Error(
+      resultado.error ?? "No se pudo guardar la matrícula."
+    );
+  }
+}

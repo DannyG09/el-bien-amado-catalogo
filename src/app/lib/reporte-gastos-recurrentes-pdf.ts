@@ -10,6 +10,7 @@ import {
 
 export type GastoRecurrentePdf = {
   vehiculo: string;
+  color: string;
   placa: string;
   nombre: string;
   categoria: string;
@@ -165,7 +166,7 @@ export async function crearReporteGastosRecurrentesPdf(
             ? "Vence hoy"
             : `Vence en ${gasto.diasVigencia} días`;
       const detalles = [
-        `${gasto.vehiculo}${gasto.placa ? ` · ${gasto.placa}` : ""}`,
+        `${gasto.vehiculo}${gasto.color ? ` · ${gasto.color}` : ""}${gasto.placa ? ` · ${gasto.placa}` : ""}`,
         `${gasto.categoria.toLocaleUpperCase("es-DO")} · ${gasto.nombre}`,
         `Frecuencia: ${gasto.frecuencia === "mensual" ? "mensual" : "anual"} · Próxima fecha: ${fechaLegible(gasto.fechaProxima)}`,
         `${dias} · Monto: DOP ${gasto.monto.toLocaleString("es-DO", {

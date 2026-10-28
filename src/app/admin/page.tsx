@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   CarFront,
+  FileText,
   CheckCircle2,
   Plus,
   Receipt,
@@ -16,6 +17,11 @@ import {
   CalendarDays,
 } from "lucide-react";
 import AdminPageHeader from "./AdminPageHeader";
+
+type VehiculoMatricula = {
+  vehiculoId: number;
+  tieneMatricula: boolean;
+};
 
 type Vehiculo = {
   id: number;
@@ -116,6 +122,7 @@ export default function AdminPage() {
     RespuestaMultasDanos["resumen"] | null
   >(null);
   const [agenda, setAgenda] = useState<EventoAgenda[] | null>(null);
+  const [matriculas, setMatriculas] = useState<VehiculoMatricula[] | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -131,6 +138,7 @@ export default function AdminPage() {
           cache: "no-store",
         }),
         fetch("/api/agenda", { cache: "no-store" }),
+        fetch("/api/matriculas", { cache: "no-store" }),
       ]);
 
       if (cancelado) return;
@@ -184,6 +192,30 @@ export default function AdminPage() {
         if (!cancelado) setAgenda(datos);
       }
 
+      const respuestaMatriculas = resultados[4];
+      if (respuestaMatriculas.status === "rejected" || !respuestaMatriculas.value.ok) {
+        errores.push("No se pudo cargar el resumen de matrículas.");
+      } else {
+        try {
+          const datos: unknown = await respuestaMatriculas.value.json();
+          // La API debe devolver una lista de vehículos con tieneMatricula.
+          if (
+            !Array.isArray(datos) ||
+            !datos.every(
+              (item) =>
+                typeof item === "object" &&
+                item !== null &&
+                typeof (item as VehiculoMatricula).tieneMatricula === "boolean"
+            )
+          ) {
+            throw new Error("Formato inesperado en /api/matriculas");
+          }
+          if (!cancelado) setMatriculas(datos as VehiculoMatricula[]);
+        } catch {
+          errores.push("La API de matrículas devolvió datos no válidos.");
+        }
+      }
+
       if (!cancelado && errores.length > 0) setError(errores.join(" "));
     }
 
@@ -215,6 +247,13 @@ export default function AdminPage() {
     ...vehiculosEnPintura,
   ];
 
+  const matriculasRegistradas = matriculas?.filter(
+    (vehiculo) => vehiculo.tieneMatricula
+  ).length ?? null;
+  const matriculasPendientes = matriculas === null
+    ? null
+    : matriculas.length - (matriculasRegistradas ?? 0);
+
   const estadisticas = [
     {
       label: "Vehículos en flota",
@@ -224,6 +263,17 @@ export default function AdminPage() {
           ? "Cargando inventario"
           : `${FORMATO_NUMERO.format(vehiculosDisponibles)} disponibles`,
       icono: CarFront,
+      color: "bg-red-50 text-[#D4202C]",
+    },
+    {
+      label: "Matrículas registradas",
+      valor: matriculasRegistradas === null
+        ? "—"
+        : FORMATO_NUMERO.format(matriculasRegistradas),
+      detalle: matriculasPendientes === null
+        ? "Cargando documentos"
+        : `${FORMATO_NUMERO.format(matriculasPendientes)} pendientes`,
+      icono: FileText,
       color: "bg-red-50 text-[#D4202C]",
     },
     {
@@ -287,6 +337,18 @@ export default function AdminPage() {
       icono: CarFront,
       acento: "bg-red-50 text-[#D4202C]",
       etiqueta: cantidadVehiculos === null ? "Ver flota" : `${cantidadVehiculos} en flota`,
+      disponible: true,
+    },
+    {
+      titulo: "Matrículas",
+      descripcion:
+        "Consulta, registra y actualiza matrículas de vehículos en formato imagen o PDF.",
+      href: "/admin/matriculas",
+      icono: FileText,
+      acento: "bg-red-50 text-[#D4202C]",
+      etiqueta: matriculasPendientes === null
+        ? "Ver matrículas"
+        : `${FORMATO_NUMERO.format(matriculasPendientes)} pendientes`,
       disponible: true,
     },
     {
@@ -399,7 +461,7 @@ export default function AdminPage() {
 
         <section
           aria-label="Indicadores de la flota"
-          className="mb-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
+          className="mb-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
         >
           {estadisticas.map(({ label, valor, detalle, icono: Icon, color }) => (
             <article

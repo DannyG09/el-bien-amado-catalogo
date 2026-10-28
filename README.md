@@ -101,6 +101,7 @@ Ejecuta las migraciones en orden:
 8. [`database/migrations/008_contratos.sql`](./database/migrations/008_contratos.sql) crea contratos, pagos y configuración, y agrega el estado reservado a los vehículos. Ejecútala después de la migración 007.
 9. [`database/migrations/009_multas_danos.sql`](./database/migrations/009_multas_danos.sql) crea el registro de multas, daños y sus fotografías.
 10. [`database/migrations/010_reservas_extensiones.sql`](./database/migrations/010_reservas_extensiones.sql) crea las reservas por fecha y el historial de extensiones. Ejecútala después de la migración 009.
+11. [`database/migrations/011_fotos_gastos_recurrentes.sql`](./database/migrations/011_fotos_gastos_recurrentes.sql) agrega el almacenamiento de una foto privada por gasto recurrente.
 
 Las reservas y contratos bloquean las fechas de entrega y devolución inclusive.
 Las extensiones propuestas no cambian el contrato firmado y solo se aplican

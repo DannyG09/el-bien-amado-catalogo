@@ -6,6 +6,7 @@ import {
   validarGastoRecurrente,
   type GastoRecurrente,
 } from "../../lib/gastos-recurrentes";
+import { crearUrlPrivadaFotoGasto } from "../../lib/fotos-gastos-recurrentes";
 
 export const runtime = "nodejs";
 
@@ -16,15 +17,28 @@ function leerId(valor: unknown) {
 
 function normalizarGasto(fila: Record<string, unknown>): GastoRecurrente & {
   vehiculo: string;
+  color: string;
   placa: string;
+  fotoUrl: string | null;
+  fotoNombre: string | null;
 } {
   const frecuencia = fila.frecuencia === "anual" ? "anual" : "mensual";
   const fechaInicio = String(fila.fechaInicio);
+  const fotoPublicId =
+    typeof fila.fotoPublicId === "string" ? fila.fotoPublicId : "";
+  const fotoVersion = Number(fila.fotoVersion);
   return {
     id: Number(fila.id),
     vehiculoId: Number(fila.vehiculoId),
     vehiculo: String(fila.vehiculo),
+    color: String(fila.color ?? ""),
     placa: String(fila.placa ?? ""),
+    fotoUrl:
+      fotoPublicId && Number.isSafeInteger(fotoVersion)
+        ? crearUrlPrivadaFotoGasto(fotoPublicId, fotoVersion)
+        : null,
+    fotoNombre:
+      typeof fila.fotoNombre === "string" ? fila.fotoNombre : null,
     nombre: String(fila.nombre),
     categoria: String(fila.categoria) as GastoRecurrente["categoria"],
     frecuencia,
@@ -46,7 +60,13 @@ export async function GET() {
     const pool = await getConnection();
     const [vehiculosResultado, gastosResultado] = await Promise.all([
       pool.query(
-        `SELECT id, marca, modelo, COALESCE(placa, '') AS placa
+        `SELECT
+           id,
+           marca,
+           modelo,
+           anio,
+           COALESCE(color, '') AS color,
+           COALESCE(placa, '') AS placa
          FROM public.vehiculos
          ORDER BY marca ASC, modelo ASC, id ASC`
       ),
@@ -54,8 +74,12 @@ export async function GET() {
         `SELECT
            g.id,
            g.vehiculo_id AS "vehiculoId",
-           CONCAT_WS(' ', v.marca, v.modelo) AS vehiculo,
+           CONCAT_WS(' ', v.marca, v.modelo, v.anio) AS vehiculo,
+           COALESCE(v.color, '') AS color,
            COALESCE(v.placa, '') AS placa,
+           g.foto_public_id AS "fotoPublicId",
+           g.foto_version AS "fotoVersion",
+           g.foto_nombre AS "fotoNombre",
            g.nombre,
            g.categoria,
            g.frecuencia,
@@ -74,6 +98,8 @@ export async function GET() {
             id: Number(fila.id),
             marca: String(fila.marca),
             modelo: String(fila.modelo),
+            anio: Number(fila.anio),
+            color: String(fila.color),
             placa: String(fila.placa),
           })
         ),

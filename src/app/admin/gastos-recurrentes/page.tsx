@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import {
   CalendarClock,
   CarFront,
   CircleDollarSign,
   Download,
+  Eye,
   FileText,
+  ImagePlus,
   LoaderCircle,
   Plus,
   Search,
@@ -27,12 +36,17 @@ type Vehiculo = {
   id: number;
   marca: string;
   modelo: string;
+  anio: number;
+  color: string;
   placa: string;
 };
 
 type GastoConVehiculo = GastoRecurrente & {
   vehiculo: string;
+  color: string;
   placa: string;
+  fotoUrl: string | null;
+  fotoNombre: string | null;
 };
 
 type DatosFormulario = {
@@ -97,7 +111,11 @@ export default function GastosRecurrentesPage() {
   const [descargando, setDescargando] = useState(false);
   const [formularioAbierto, setFormularioAbierto] = useState(false);
   const [gastoEditando, setGastoEditando] = useState<number | null>(null);
+  const [gastoVisualizando, setGastoVisualizando] =
+    useState<GastoConVehiculo | null>(null);
+  const [fotoSubiendo, setFotoSubiendo] = useState(false);
   const [datos, setDatos] = useState<DatosFormulario>(() => formularioVacio());
+  const inputFotoRef = useRef<HTMLInputElement>(null);
   const [busqueda, setBusqueda] = useState("");
   const [filtroVehiculo, setFiltroVehiculo] = useState("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("todas");
@@ -178,7 +196,7 @@ export default function GastosRecurrentesPage() {
       .filter((gasto) => {
         const coincideBusqueda =
           !consulta ||
-          `${gasto.nombre} ${gasto.vehiculo} ${gasto.placa}`
+          `${gasto.nombre} ${gasto.vehiculo} ${gasto.color} ${gasto.placa}`
             .toLocaleLowerCase("es")
             .includes(consulta);
         const coincideVehiculo =
@@ -298,6 +316,80 @@ export default function GastosRecurrentesPage() {
       setActualizacion((valor) => valor + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo eliminar el gasto.");
+    }
+  }
+
+  async function guardarFotoGasto(evento: ChangeEvent<HTMLInputElement>) {
+    const archivo = evento.target.files?.[0];
+    evento.target.value = "";
+    if (!archivo || !gastoVisualizando || fotoSubiendo) return;
+
+    setFotoSubiendo(true);
+    setError("");
+    try {
+      const formulario = new FormData();
+      formulario.append("foto", archivo);
+      const respuesta = await fetch(
+        `/api/vehiculos/${gastoVisualizando.vehiculoId}/gastos-recurrentes/${gastoVisualizando.id}/foto`,
+        { method: "POST", body: formulario }
+      );
+      const resultado = (await respuesta.json()) as {
+        error?: string;
+        fotoUrl?: string;
+        fotoNombre?: string;
+      };
+      if (!respuesta.ok || !resultado.fotoUrl) {
+        throw new Error(resultado.error ?? "No se pudo guardar la foto.");
+      }
+      const actualizado = {
+        ...gastoVisualizando,
+        fotoUrl: resultado.fotoUrl,
+        fotoNombre: resultado.fotoNombre ?? archivo.name,
+      };
+      setGastoVisualizando(actualizado);
+      setGastos((actuales) =>
+        actuales.map((gasto) =>
+          gasto.id === actualizado.id ? actualizado : gasto
+        )
+      );
+      setMensaje("Foto del gasto guardada.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar la foto.");
+    } finally {
+      setFotoSubiendo(false);
+    }
+  }
+
+  async function eliminarFotoGasto() {
+    if (!gastoVisualizando?.fotoUrl || fotoSubiendo) return;
+    if (!window.confirm("¿Eliminar la foto de este gasto?")) return;
+    setFotoSubiendo(true);
+    setError("");
+    try {
+      const respuesta = await fetch(
+        `/api/vehiculos/${gastoVisualizando.vehiculoId}/gastos-recurrentes/${gastoVisualizando.id}/foto`,
+        { method: "DELETE" }
+      );
+      const resultado = (await respuesta.json()) as { error?: string };
+      if (!respuesta.ok) {
+        throw new Error(resultado.error ?? "No se pudo eliminar la foto.");
+      }
+      const actualizado = {
+        ...gastoVisualizando,
+        fotoUrl: null,
+        fotoNombre: null,
+      };
+      setGastoVisualizando(actualizado);
+      setGastos((actuales) =>
+        actuales.map((gasto) =>
+          gasto.id === actualizado.id ? actualizado : gasto
+        )
+      );
+      setMensaje("Foto del gasto eliminada.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo eliminar la foto.");
+    } finally {
+      setFotoSubiendo(false);
     }
   }
 
@@ -471,7 +563,8 @@ export default function GastosRecurrentesPage() {
               >
                 {vehiculos.map((vehiculo) => (
                   <option key={vehiculo.id} value={vehiculo.id}>
-                    {vehiculo.marca} {vehiculo.modelo}
+                    {vehiculo.marca} {vehiculo.modelo} {vehiculo.anio}
+                    {vehiculo.color ? ` · ${vehiculo.color}` : ""}
                     {vehiculo.placa ? ` · ${vehiculo.placa}` : ""}
                   </option>
                 ))}
@@ -607,7 +700,8 @@ export default function GastosRecurrentesPage() {
                 <option value="todos">Todos los vehículos</option>
                 {vehiculos.map((vehiculo) => (
                   <option key={vehiculo.id} value={vehiculo.id}>
-                    {vehiculo.marca} {vehiculo.modelo}
+                    {vehiculo.marca} {vehiculo.modelo} {vehiculo.anio}
+                    {vehiculo.color ? ` · ${vehiculo.color}` : ""}
                   </option>
                 ))}
               </select>
@@ -696,7 +790,9 @@ export default function GastosRecurrentesPage() {
                     <p className="mt-1.5 flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
                       <CarFront size={15} className="shrink-0" />
                       <span className="truncate">
-                        {gasto.vehiculo}{gasto.placa ? ` · ${gasto.placa}` : ""}
+                        {gasto.vehiculo}
+                        {gasto.color ? ` · ${gasto.color}` : ""}
+                        {gasto.placa ? ` · ${gasto.placa}` : ""}
                       </span>
                     </p>
                   </div>
@@ -729,7 +825,18 @@ export default function GastosRecurrentesPage() {
                       {etiquetaVigencia(dias)}
                     </span>
                   </div>
-                  <div className="flex gap-2 lg:justify-end">
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGastoVisualizando(gasto);
+                        setError("");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-gray-300 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      {gasto.fotoUrl ? <Eye size={15} /> : <ImagePlus size={15} />}
+                      {gasto.fotoUrl ? "Visualizar" : "Agregar foto"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => editarGasto(gasto)}
@@ -755,6 +862,115 @@ export default function GastosRecurrentesPage() {
       <p className="mt-4 text-xs leading-5 text-gray-500 dark:text-gray-400">
         La proyección anual multiplica los cargos mensuales por 12. La fecha de vigencia se calcula desde la fecha de inicio y la periodicidad registrada.
       </p>
+      {gastoVisualizando && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onMouseDown={(evento) => {
+            if (evento.target === evento.currentTarget && !fotoSubiendo) {
+              setGastoVisualizando(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="foto-gasto-titulo"
+            className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl dark:bg-[#202629] sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  id="foto-gasto-titulo"
+                  className="text-lg font-bold text-gray-950 dark:text-white"
+                >
+                  {gastoVisualizando.nombre}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {gastoVisualizando.vehiculo}
+                  {gastoVisualizando.color
+                    ? ` · ${gastoVisualizando.color}`
+                    : ""}
+                  {gastoVisualizando.placa
+                    ? ` · ${gastoVisualizando.placa}`
+                    : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={() => setGastoVisualizando(null)}
+                disabled={fotoSubiendo}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {gastoVisualizando.fotoUrl ? (
+              <div className="mt-5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={gastoVisualizando.fotoUrl}
+                  alt={`Foto de ${gastoVisualizando.nombre}`}
+                  className="max-h-[55vh] w-full rounded-xl bg-gray-100 object-contain dark:bg-gray-900"
+                />
+                {gastoVisualizando.fotoNombre && (
+                  <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">
+                    {gastoVisualizando.fotoNombre}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-5 rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                Este gasto todavía no tiene una foto adjunta.
+              </p>
+            )}
+            {error && (
+              <p role="alert" className="mt-3 text-sm font-medium text-red-700 dark:text-red-300">
+                {error}
+              </p>
+            )}
+            <input
+              ref={inputFotoRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(evento) => void guardarFotoGasto(evento)}
+            />
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              {gastoVisualizando.fotoUrl && (
+                <button
+                  type="button"
+                  onClick={() => void eliminarFotoGasto()}
+                  disabled={fotoSubiendo}
+                  className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                >
+                  Eliminar foto
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => inputFotoRef.current?.click()}
+                disabled={fotoSubiendo}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#D4202C] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#b81b26] disabled:opacity-60"
+              >
+                {fotoSubiendo ? (
+                  <LoaderCircle size={16} className="animate-spin" />
+                ) : (
+                  <ImagePlus size={16} />
+                )}
+                {fotoSubiendo
+                  ? "Guardando..."
+                  : gastoVisualizando.fotoUrl
+                    ? "Cambiar foto"
+                    : "Subir foto"}
+              </button>
+            </div>
+            <p className="mt-3 text-right text-xs text-gray-500 dark:text-gray-400">
+              JPG, PNG o WEBP · máximo 5 MB
+            </p>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

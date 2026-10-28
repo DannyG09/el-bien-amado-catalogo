@@ -29,7 +29,8 @@ export async function GET(request: Request) {
     const pool = await getConnection();
     const resultado = await pool.query(
       `SELECT
-         CONCAT_WS(' ', v.marca, v.modelo) AS vehiculo,
+         CONCAT_WS(' ', v.marca, v.modelo, v.anio) AS vehiculo,
+         COALESCE(v.color, '') AS color,
          COALESCE(v.placa, '') AS placa,
          g.nombre,
          g.categoria,
@@ -49,6 +50,7 @@ export async function GET(request: Request) {
       );
       return {
         vehiculo: String(fila.vehiculo),
+        color: String(fila.color),
         placa: String(fila.placa),
         nombre: String(fila.nombre),
         categoria: String(fila.categoria),

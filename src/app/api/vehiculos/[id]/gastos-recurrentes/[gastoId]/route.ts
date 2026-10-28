@@ -5,6 +5,7 @@ import {
   calcularFechaProxima,
   validarGastoRecurrente,
 } from "../../../../../lib/gastos-recurrentes";
+import { eliminarFotoGasto } from "../../../../../lib/fotos-gastos-recurrentes";
 
 export const runtime = "nodejs";
 
@@ -135,7 +136,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     const resultado = await pool.query(
       `DELETE FROM public.vehiculo_gastos_recurrentes
        WHERE id = $1 AND vehiculo_id = $2
-       RETURNING id`,
+       RETURNING id, foto_public_id AS "fotoPublicId"`,
       [gastoRecurrenteId, vehiculoId]
     );
 
@@ -144,6 +145,15 @@ export async function DELETE(_request: Request, { params }: Params) {
         { error: "No se encontró el gasto recurrente de este vehículo." },
         { status: 404 }
       );
+    }
+
+    const fotoPublicId = resultado.rows[0].fotoPublicId;
+    if (typeof fotoPublicId === "string" && fotoPublicId) {
+      try {
+        await eliminarFotoGasto(fotoPublicId);
+      } catch (error) {
+        console.error("No se pudo limpiar la foto del gasto eliminado:", error);
+      }
     }
 
     return NextResponse.json({ mensaje: "Gasto recurrente eliminado." });

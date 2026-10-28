@@ -14,6 +14,7 @@ import {
   WalletCards,
   FileSignature,
   CalendarDays,
+  FileText,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -59,6 +60,12 @@ const NAV_GROUPS = [
         label: "Pagos",
         href: "/admin/gastos-recurrentes",
         icon: WalletCards,
+        available: true,
+      },
+      {
+        label: "Matriculas",
+        href: "/admin/matriculas",
+        icon: FileText,
         available: true,
       },
     ],
@@ -111,9 +118,19 @@ export default function AdminSidebar() {
         </div>
 
         <nav
-          aria-label="Navegación administrativa"
-          className="flex gap-5 overflow-x-auto px-4 pb-4 lg:flex-1 lg:flex-col lg:gap-5 lg:overflow-y-auto lg:px-4"
-        >
+       aria-label="Navegación administrativa"
+       className="
+       flex gap-5 overflow-x-auto px-4 pb-4
+       [scrollbar-width:none]
+       [&::-webkit-scrollbar]:hidden
+       lg:min-h-0
+       lg:flex-1
+       lg:flex-col
+       lg:gap-5
+       lg:overflow-x-hidden
+       lg:overflow-y-auto
+       lg:px-4 "
+      >
           {NAV_GROUPS.map(({ label: grupo, items }) => (
             <section key={grupo} className="shrink-0 lg:w-full">
               <h2 className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
