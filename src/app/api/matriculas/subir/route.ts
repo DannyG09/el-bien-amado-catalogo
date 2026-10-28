@@ -135,7 +135,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Solo JPG, PNG o WEBP de hasta 5 MB.",
+            "Solo JPG, PNG, PDF o WEBP de hasta 5 MB.",
         },
         { status: 400 }
       );
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
 
     if (!formatoImagenValido(buffer, archivo.type)) {
       return NextResponse.json(
-        { error: "El archivo no es una imagen válida." },
+        { error: "El archivo no es una imagen o PDF válido." },
         { status: 400 }
       );
     }
@@ -261,6 +261,7 @@ export async function POST(request: Request) {
       imagenAnterior =
         existente.rows[0]?.imagen_public_id ?? null;
 
+      
       // Insertar o actualizar el documento.
       await cliente.query(
         `
@@ -270,20 +271,23 @@ export async function POST(request: Request) {
           imagen_public_id,
           tipo_archivo
         )
-        VALUES ($1, $2, $3)
+        VALUES ($1, $2, $3, $4)
 
         ON CONFLICT (vehiculo_id)
         DO UPDATE SET
           imagen_url = EXCLUDED.imagen_url,
           imagen_public_id = EXCLUDED.imagen_public_id,
+          tipo_archivo = EXCLUDED.tipo_archivo,
           fecha_actualizacion = CURRENT_TIMESTAMP
         `,
         [
           vehiculoId,
           subida.secure_url,
           subida.public_id,
+          tipoArchivo,
         ]
       );
+
 
       await cliente.query("COMMIT");
       transaccionIniciada = false;

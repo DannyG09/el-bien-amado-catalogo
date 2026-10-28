@@ -24,11 +24,22 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 
 import { subirMatriculaCloudinary } from "../../lib/uploadCloudinary";
 
 const VEHICULOS_POR_PAGINA = 6;
+
+type EstadoMatricula = "todos" | "con" | "sin";
+type OrdenVehiculos =
+  | "marca_asc"
+  | "marca_desc"
+  | "anio_desc"
+  | "anio_asc"
+  | "matricula_primero"
+  | "pendientes_primero";
 
 type VehiculoMatricula = {
   vehiculoId: number;
@@ -56,6 +67,10 @@ export default function MatriculasPage() {
 
   const [busqueda, setBusqueda] = useState("");
   const [paginaActual, setPaginaActual] = useState(1);
+  const [estadoMatricula, setEstadoMatricula] = useState<EstadoMatricula>("todos");
+  const [marca, setMarca] = useState("todas");
+  const [anio, setAnio] = useState("todos");
+  const [orden, setOrden] = useState<OrdenVehiculos>("marca_asc");
 
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -75,6 +90,7 @@ export default function MatriculasPage() {
     useState(false);
 
   const inputArchivo = useRef<HTMLInputElement>(null);
+  const vehiculoParaSubirRef = useRef<VehiculoMatricula | null>(null);
 
   // Obtener vehículos.
   const cargarVehiculos = useCallback(async () => {
@@ -112,12 +128,24 @@ export default function MatriculasPage() {
     void iniciar();
   }, [cargarVehiculos]);
 
-  // Buscar por marca, modelo, año, color o placa.
-  const filtrados = useMemo(() => {
-    const texto = busqueda.trim().toLowerCase();
+  // Opciones obtenidas de los vehículos existentes.
+  const marcas = useMemo(
+    () => [...new Set(vehiculos.map((v) => v.marca.trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "es")),
+    [vehiculos]
+  );
 
-    return vehiculos.filter((vehiculo) =>
-      [
+  const anios = useMemo(
+    () => [...new Set(vehiculos.map((v) => v.anio))]
+      .filter((valor) => Number.isFinite(valor))
+      .sort((a, b) => b - a),
+    [vehiculos]
+  );
+
+  const filtrados = useMemo(() => {
+    const texto = busqueda.trim().toLocaleLowerCase("es");
+    const resultado = vehiculos.filter((vehiculo) => {
+      const coincideBusqueda = [
         vehiculo.marca,
         vehiculo.modelo,
         vehiculo.anio,
@@ -125,10 +153,52 @@ export default function MatriculasPage() {
         vehiculo.placa,
       ]
         .join(" ")
-        .toLowerCase()
-        .includes(texto)
-    );
-  }, [vehiculos, busqueda]);
+        .toLocaleLowerCase("es")
+        .includes(texto);
+
+      const coincideEstado =
+        estadoMatricula === "todos" ||
+        (estadoMatricula === "con" && vehiculo.tieneMatricula) ||
+        (estadoMatricula === "sin" && !vehiculo.tieneMatricula);
+
+      return (
+        coincideBusqueda &&
+        coincideEstado &&
+        (marca === "todas" || vehiculo.marca === marca) &&
+        (anio === "todos" || String(vehiculo.anio) === anio)
+      );
+    });
+
+    return resultado.sort((a, b) => {
+      switch (orden) {
+        case "marca_desc":
+          return `${b.marca} ${b.modelo}`.localeCompare(`${a.marca} ${a.modelo}`, "es");
+        case "anio_desc":
+          return b.anio - a.anio || a.marca.localeCompare(b.marca, "es");
+        case "anio_asc":
+          return a.anio - b.anio || a.marca.localeCompare(b.marca, "es");
+        case "matricula_primero":
+          return Number(b.tieneMatricula) - Number(a.tieneMatricula);
+        case "pendientes_primero":
+          return Number(a.tieneMatricula) - Number(b.tieneMatricula);
+        default:
+          return `${a.marca} ${a.modelo}`.localeCompare(`${b.marca} ${b.modelo}`, "es");
+      }
+    });
+  }, [vehiculos, busqueda, estadoMatricula, marca, anio, orden]);
+
+  const filtrosActivos =
+    busqueda !== "" || estadoMatricula !== "todos" ||
+    marca !== "todas" || anio !== "todos" || orden !== "marca_asc";
+
+  function limpiarFiltros() {
+    setBusqueda("");
+    setEstadoMatricula("todos");
+    setMarca("todas");
+    setAnio("todos");
+    setOrden("marca_asc");
+    setPaginaActual(1);
+  }
 
   // Paginación.
   const totalPaginas = Math.max(
@@ -171,6 +241,7 @@ export default function MatriculasPage() {
   function seleccionarArchivo(vehiculo: VehiculoMatricula) {
     if (guardando) return;
 
+    vehiculoParaSubirRef.current = vehiculo;
     setSeleccionado(vehiculo);
     setError("");
     setMensaje("");
@@ -186,9 +257,16 @@ export default function MatriculasPage() {
 
     evento.target.value = "";
 
-    if (!archivo || !seleccionado) return;
-
-    const vehiculo = seleccionado;
+    const vehiculo = vehiculoParaSubirRef.current;
+    if (!archivo) {
+      vehiculoParaSubirRef.current = null;
+      setSeleccionado(null);
+      return;
+    }
+    if (!vehiculo) {
+      setError("No se pudo identificar el vehículo. Intenta seleccionar la matrícula nuevamente.");
+      return;
+    }
 
     setGuardando(true);
     setError("");
@@ -213,6 +291,7 @@ export default function MatriculasPage() {
       );
     } finally {
       setGuardando(false);
+      vehiculoParaSubirRef.current = null;
       setSeleccionado(null);
     }
   }
@@ -395,6 +474,91 @@ export default function MatriculasPage() {
                 className="w-full rounded-xl border border-gray-200 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-[#D4202C]"
               />
             </div>
+
+            {/* Filtros combinables */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2" aria-label="Filtrar por estado de matrícula">
+                <SlidersHorizontal size={17} className="mr-1 text-gray-500" />
+                {([
+                  ["todos", "Todos"],
+                  ["con", "Con matrícula"],
+                  ["sin", "Sin matrícula"],
+                ] as const).map(([valor, etiqueta]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    aria-pressed={estadoMatricula === valor}
+                    onClick={() => {
+                      setEstadoMatricula(valor);
+                      setPaginaActual(1);
+                    }}
+                    className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                      estadoMatricula === valor
+                        ? "bg-[#D4202C] text-white shadow-sm"
+                        : "border border-gray-200 bg-white text-gray-600 hover:border-[#D4202C] hover:text-[#D4202C]"
+                    }`}
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
+              <span className="text-sm font-medium text-gray-500">
+                {filtrados.length} resultado{filtrados.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="flex flex-col gap-1.5 text-xs font-semibold text-gray-600">
+                Marca
+                <select
+                  value={marca}
+                  onChange={(e) => { setMarca(e.target.value); setPaginaActual(1); }}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 outline-none focus:border-[#D4202C]"
+                >
+                  <option value="todas">Todas las marcas</option>
+                  {marcas.map((opcion) => (
+                    <option key={opcion} value={opcion}>{opcion}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 text-xs font-semibold text-gray-600">
+                Año
+                <select
+                  value={anio}
+                  onChange={(e) => { setAnio(e.target.value); setPaginaActual(1); }}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 outline-none focus:border-[#D4202C]"
+                >
+                  <option value="todos">Todos los años</option>
+                  {anios.map((opcion) => (
+                    <option key={opcion} value={String(opcion)}>{opcion}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 text-xs font-semibold text-gray-600">
+                Ordenar por
+                <select
+                  value={orden}
+                  onChange={(e) => { setOrden(e.target.value as OrdenVehiculos); setPaginaActual(1); }}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 outline-none focus:border-[#D4202C]"
+                >
+                  <option value="marca_asc">Marca A-Z</option>
+                  <option value="marca_desc">Marca Z-A</option>
+                  <option value="anio_desc">Año: más reciente</option>
+                  <option value="anio_asc">Año: más antiguo</option>
+                  <option value="matricula_primero">Con matrícula primero</option>
+                  <option value="pendientes_primero">Sin matrícula primero</option>
+                </select>
+              </label>
+            </div>
+            {filtrosActivos && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#D4202C] hover:underline"
+              >
+                <RotateCcw size={15} /> Limpiar filtros
+              </button>
+            )}
           </div>
 
           {cargando ? (
@@ -403,7 +567,7 @@ export default function MatriculasPage() {
             </p>
           ) : filtrados.length === 0 ? (
             <p className="p-6 text-sm text-gray-500">
-              No se encontraron vehículos.
+              No se encontraron vehículos con los filtros seleccionados.
             </p>
           ) : (
             <div className="divide-y divide-gray-100">

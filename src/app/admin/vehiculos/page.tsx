@@ -4,9 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   Gauge,
+  LayoutGrid,
+  List,
   LockKeyhole,
   Pencil,
   Trash2,
@@ -54,6 +58,8 @@ const OPCIONES_ORDEN: { id: Orden; label: string }[] = [
   { id: "anio-asc", label: "Año: más antiguo primero" },
   { id: "marca-asc", label: "Marca: A-Z" },
 ];
+const VEHICULOS_POR_PAGINA = 6;
+
 const FORMATO_NUMERO = new Intl.NumberFormat("es-DO");
 
 export default function VehiculosAdminPage() {
@@ -61,6 +67,8 @@ export default function VehiculosAdminPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [vista, setVista] = useState<"lista" | "tarjetas">("lista");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [orden, setOrden] = useState<Orden>("reciente");
   const [marcaFiltro, setMarcaFiltro] = useState("todas");
@@ -247,6 +255,7 @@ export default function VehiculosAdminPage() {
     precioMax !== "";
 
   function limpiarFiltros() {
+    setPaginaActual(1);
     setBusqueda("");
     setFiltro("todos");
     setOrden("reciente");
@@ -288,6 +297,19 @@ export default function VehiculosAdminPage() {
       }
     });
   }, [vehiculos, busqueda, filtro, orden, marcaFiltro, precioMin, precioMax]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / VEHICULOS_POR_PAGINA));
+  const paginaSegura = Math.min(paginaActual, totalPaginas);
+  const vehiculosPaginados = filtrados.slice(
+    (paginaSegura - 1) * VEHICULOS_POR_PAGINA,
+    paginaSegura * VEHICULOS_POR_PAGINA
+  );
+
+  function cambiarPagina(pagina: number) {
+    if (pagina < 1 || pagina > totalPaginas || pagina === paginaSegura) return;
+    setPaginaActual(pagina);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const filtros: { id: Filtro; label: string; total: number }[] = [
     { id: "todos", label: "Todos", total: vehiculos.length },
@@ -356,7 +378,7 @@ export default function VehiculosAdminPage() {
                 <input
                   type="text"
                   value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
+                  onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(1); }}
                   placeholder="Buscar por marca, modelo o placa..."
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-[#D4202C] focus:bg-white focus:ring-2 focus:ring-[#D4202C]/20"
                 />
@@ -366,7 +388,7 @@ export default function VehiculosAdminPage() {
                 {filtros.map((f) => (
                   <button
                     key={f.id}
-                    onClick={() => setFiltro(f.id)}
+                    onClick={() => { setFiltro(f.id); setPaginaActual(1); }}
                     className={
                       filtro === f.id
                         ? "rounded-full bg-black px-4 py-2 text-sm font-bold text-white shadow"
@@ -396,7 +418,7 @@ export default function VehiculosAdminPage() {
                 </span>
                 <select
                   value={orden}
-                  onChange={(e) => setOrden(e.target.value as Orden)}
+                  onChange={(e) => { setOrden(e.target.value as Orden); setPaginaActual(1); }}
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-[#D4202C]"
                 >
                   {OPCIONES_ORDEN.map((o) => (
@@ -413,7 +435,7 @@ export default function VehiculosAdminPage() {
                 </span>
                 <select
                   value={marcaFiltro}
-                  onChange={(e) => setMarcaFiltro(e.target.value)}
+                  onChange={(e) => { setMarcaFiltro(e.target.value); setPaginaActual(1); }}
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-[#D4202C]"
                 >
                   <option value="todas">Todas las marcas</option>
@@ -433,7 +455,7 @@ export default function VehiculosAdminPage() {
                   type="number"
                   min={0}
                   value={precioMin}
-                  onChange={(e) => setPrecioMin(e.target.value)}
+                  onChange={(e) => { setPrecioMin(e.target.value); setPaginaActual(1); }}
                   placeholder="0"
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-[#D4202C]"
                 />
@@ -447,7 +469,7 @@ export default function VehiculosAdminPage() {
                   type="number"
                   min={0}
                   value={precioMax}
-                  onChange={(e) => setPrecioMax(e.target.value)}
+                  onChange={(e) => { setPrecioMax(e.target.value); setPaginaActual(1); }}
                   placeholder="Sin límite"
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm outline-none focus:border-[#D4202C]"
                 />
@@ -509,25 +531,42 @@ export default function VehiculosAdminPage() {
           </div>
         )}
 
-        {/* LISTA */}
+        {/* SELECTOR DE VISTA */}
+        {!cargando && vehiculos.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-gray-600">Vista de vehículos</p>
+            <div role="group" aria-label="Modo de visualización" className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+              <button type="button" onClick={() => setVista("lista")} aria-pressed={vista === "lista"}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition ${vista === "lista" ? "bg-black text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                <List size={17} /> Lista
+              </button>
+              <button type="button" onClick={() => setVista("tarjetas")} aria-pressed={vista === "tarjetas"}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition ${vista === "tarjetas" ? "bg-[#D4202C] text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                <LayoutGrid size={17} /> Tarjetas
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* LISTA O TARJETAS */}
         {!cargando && filtrados.length > 0 && (
-          <div className="space-y-3">
-            {filtrados.map((vehiculo) => (
+          <div className={vista === "tarjetas" ? "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" : "space-y-3"}>
+            {vehiculosPaginados.map((vehiculo) => (
               <article
                 key={vehiculo.id}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:border-gray-300 hover:shadow-md"
+                className={`min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:border-gray-300 hover:shadow-md ${vista === "tarjetas" ? "flex flex-col" : ""}`}
               >
-                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5">
+                <div className={vista === "tarjetas" ? "flex flex-1 flex-col gap-4 p-4" : "flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5"}>
                   {vehiculo.imagen ? (
                     <img
                       src={vehiculo.imagen}
                       alt=""
                       aria-hidden="true"
                       loading="lazy"
-                      className="h-16 w-20 shrink-0 rounded-xl object-cover"
+                      className={vista === "tarjetas" ? "h-44 w-full rounded-xl object-cover" : "h-16 w-20 shrink-0 rounded-xl object-cover"}
                     />
                   ) : (
-                    <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-3xl">
+                    <div className={vista === "tarjetas" ? "flex h-44 w-full items-center justify-center rounded-xl bg-gray-100 text-5xl" : "flex h-16 w-20 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-3xl"}>
                       🚘
                     </div>
                   )}
@@ -584,7 +623,7 @@ export default function VehiculosAdminPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className={vista === "tarjetas" ? "mt-auto flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3" : "flex flex-wrap items-center gap-2 sm:justify-end"}>
                     <label className="sr-only" htmlFor={`estado-${vehiculo.id}`}>
                       Estado de {vehiculo.marca} {vehiculo.modelo}
                     </label>
@@ -663,7 +702,7 @@ export default function VehiculosAdminPage() {
                 {vehiculosExpandidos.has(vehiculo.id) && (
                   <div
                     id={`detalles-vehiculo-${vehiculo.id}`}
-                    className="grid gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4"
+                    className={vista === "tarjetas" ? "grid gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-4" : "grid gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4"}
                   >
                     <p className="text-sm text-gray-600">
                       <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-400">
@@ -743,6 +782,29 @@ export default function VehiculosAdminPage() {
                 )}
               </article>
             ))}
+          </div>
+        )}
+
+        {!cargando && filtrados.length > 0 && (
+          <div className="mt-6 flex flex-col items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm sm:flex-row">
+            <p className="text-sm text-gray-600">
+              Mostrando <strong>{(paginaSegura - 1) * VEHICULOS_POR_PAGINA + 1}</strong>–<strong>{Math.min(paginaSegura * VEHICULOS_POR_PAGINA, filtrados.length)}</strong> de <strong>{filtrados.length}</strong> vehículos
+            </p>
+            {totalPaginas > 1 && (
+              <nav aria-label="Paginación de vehículos" className="flex flex-wrap items-center justify-center gap-2">
+                <button type="button" onClick={() => cambiarPagina(paginaSegura - 1)} disabled={paginaSegura === 1} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">
+                  <ChevronLeft size={16} /> Anterior
+                </button>
+                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((numero) => (
+                  <button key={numero} type="button" onClick={() => cambiarPagina(numero)} aria-current={paginaSegura === numero ? "page" : undefined} className={`h-10 w-10 rounded-lg text-sm font-bold transition ${paginaSegura === numero ? "bg-[#D4202C] text-white" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"}`}>
+                    {numero}
+                  </button>
+                ))}
+                <button type="button" onClick={() => cambiarPagina(paginaSegura + 1)} disabled={paginaSegura === totalPaginas} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">
+                  Siguiente <ChevronRight size={16} />
+                </button>
+              </nav>
+            )}
           </div>
         )}
       </section>
