@@ -342,6 +342,18 @@ export default function VehiculosAdminPage() {
 
   return (
     <main className="min-h-screen bg-gray-100">
+      <style jsx global>{`
+        @keyframes entradaVehiculo {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .vehiculo-entrada {
+          animation: entradaVehiculo 450ms ease-out both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .vehiculo-entrada { animation: none; }
+        }
+      `}</style>
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
         <AdminPageHeader
           title="Vehículos"
@@ -551,20 +563,23 @@ export default function VehiculosAdminPage() {
         {/* LISTA O TARJETAS */}
         {!cargando && filtrados.length > 0 && (
           <div className={vista === "tarjetas" ? "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" : "space-y-3"}>
-            {vehiculosPaginados.map((vehiculo) => (
+            {vehiculosPaginados.map((vehiculo, indice) => (
               <article
                 key={vehiculo.id}
-                className={`min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:border-gray-300 hover:shadow-md ${vista === "tarjetas" ? "flex flex-col" : ""}`}
+                style={{ animationDelay: `${indice * 65}ms` }}
+                className={`vehiculo-entrada group min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-500 ease-out motion-reduce:transform-none hover:border-[#D4202C]/60 hover:shadow-xl hover:shadow-black/10 ${vista === "tarjetas" ? "flex flex-col hover:-translate-y-2 hover:scale-[1.015]" : "hover:-translate-y-0.5"}`}
               >
                 <div className={vista === "tarjetas" ? "flex flex-1 flex-col gap-4 p-4" : "flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5"}>
                   {vehiculo.imagen ? (
-                    <img
-                      src={vehiculo.imagen}
-                      alt=""
-                      aria-hidden="true"
-                      loading="lazy"
-                      className={vista === "tarjetas" ? "h-44 w-full rounded-xl object-cover" : "h-16 w-20 shrink-0 rounded-xl object-cover"}
-                    />
+                    <div className={vista === "tarjetas" ? "h-44 w-full overflow-hidden rounded-xl" : "h-16 w-20 shrink-0 overflow-hidden rounded-xl"}>
+                      <img
+                        src={vehiculo.imagen}
+                        alt=""
+                        aria-hidden="true"
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-700 ease-out motion-reduce:transform-none group-hover:scale-110"
+                      />
+                    </div>
                   ) : (
                     <div className={vista === "tarjetas" ? "flex h-44 w-full items-center justify-center rounded-xl bg-gray-100 text-5xl" : "flex h-16 w-20 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-3xl"}>
                       🚘

@@ -85,6 +85,24 @@ function calcularProyeccionAnual(gasto: GastoRecurrente) {
   return gasto.monto * (gasto.frecuencia === "mensual" ? 12 : 1);
 }
 
+function calcularMontoEnAnio(
+  gasto: GastoRecurrente,
+  anio: number,
+  soloFinAnio = false
+): number {
+  if (!Number.isInteger(anio) || anio < 1900 || anio > 9999) return 0;
+  const [anioInicio, mesInicio] = gasto.fechaInicio.split("-").map(Number);
+  if (anioInicio > anio || !mesInicio) return 0;
+  if (gasto.frecuencia === "anual") {
+    return soloFinAnio && mesInicio < 11 ? 0 : gasto.monto;
+  }
+  const primerMes = Math.max(
+    anioInicio === anio ? mesInicio : 1,
+    soloFinAnio ? 11 : 1
+  );
+  return Math.max(0, 13 - primerMes) * gasto.monto;
+}
+
 function etiquetaVigencia(dias: number) {
   if (dias < 0) return `Vencido hace ${Math.abs(dias)} días`;
   if (dias === 0) return "Vence hoy";
@@ -103,6 +121,11 @@ function formularioVacio(vehiculoId = ""): DatosFormulario {
   };
 }
 
+// Regla presupuestaria suministrada: desde 2022 RD$4,000; hasta 2021 RD$2,000.
+function calcularMontoMarbete(anio: number): number {
+  return anio >= 2022 ? 4000 : 2000;
+}
+
 export default function GastosRecurrentesPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [gastos, setGastos] = useState<GastoConVehiculo[]>([]);
@@ -115,13 +138,23 @@ export default function GastosRecurrentesPage() {
     useState<GastoConVehiculo | null>(null);
   const [fotoSubiendo, setFotoSubiendo] = useState(false);
   const [datos, setDatos] = useState<DatosFormulario>(() => formularioVacio());
+  const vehiculoFormulario = vehiculos.find(
+    (vehiculo) => vehiculo.id === Number(datos.vehiculoId)
+  );
+  const esMarbete = datos.categoria === "marbete";
+  const montoMarbete = vehiculoFormulario
+    ? calcularMontoMarbete(vehiculoFormulario.anio)
+    : null;
   const inputFotoRef = useRef<HTMLInputElement>(null);
+  const formularioRef = useRef<HTMLElement>(null);
   const [busqueda, setBusqueda] = useState("");
   const [filtroVehiculo, setFiltroVehiculo] = useState("todos");
   const [filtroCategoria, setFiltroCategoria] = useState("todas");
   const [filtroVencimiento, setFiltroVencimiento] = useState("todos");
-  const [anioReporte, setAnioReporte] = useState(() =>
-    String(new Date().getFullYear())
+  const [categoriaReporte, setCategoriaReporte] = useState<(typeof CATEGORIAS_GASTO)[number]>("marbete");
+  const [soloFinAnio, setSoloFinAnio] = useState(false);
+  const [anioReporte, setAnioReporte] = useState<string>(
+    () => String(new Date().getFullYear())
   );
   const [actualizacion, setActualizacion] = useState(0);
   const [error, setError] = useState("");
@@ -173,10 +206,35 @@ export default function GastosRecurrentesPage() {
     };
   }, [actualizacion]);
 
+  useEffect(() => {
+    if (!formularioAbierto) return;
+    const frame = requestAnimationFrame(() => {
+      formularioRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [formularioAbierto, gastoEditando]);
+
   const proyeccionTotal = useMemo(
-    () => gastos.reduce((total, gasto) => total + calcularProyeccionAnual(gasto), 0),
-    [gastos]
+    () => gastos.reduce(
+      (total, gasto) => total + calcularMontoEnAnio(gasto, Number(anioReporte)),
+      0
+    ),
+    [gastos, anioReporte]
   );
+  const totalesPorCategoria = useMemo(() =>
+    CATEGORIAS_GASTO.map((categoria) => ({
+      categoria,
+      total: gastos.filter((g) => g.categoria === categoria)
+        .reduce((sum, g) => sum + calcularMontoEnAnio(g, Number(anioReporte)), 0),
+    })), [gastos, anioReporte]);
+
+  const totalCategoria = gastos
+    .filter((gasto) => gasto.categoria === categoriaReporte)
+    .reduce((total, gasto) => total + calcularMontoEnAnio(gasto, Number(anioReporte), soloFinAnio), 0);
+
   const gastosProximos = useMemo(
     () =>
       gastos.filter((gasto) => {
@@ -264,6 +322,9 @@ export default function GastosRecurrentesPage() {
     try {
       const editando = gastoEditando !== null;
       const gastoActual = gastos.find((gasto) => gasto.id === gastoEditando);
+      if (esMarbete && montoMarbete === null) {
+        throw new Error("Selecciona un vehículo válido para calcular el marbete.");
+      }
       const ruta = editando && gastoActual
         ? `/api/vehiculos/${gastoActual.vehiculoId}/gastos-recurrentes/${gastoActual.id}`
         : "/api/gastos-recurrentes";
@@ -274,9 +335,9 @@ export default function GastosRecurrentesPage() {
           vehiculoId: Number(datos.vehiculoId),
           nombre: datos.nombre,
           categoria: datos.categoria,
-          frecuencia: datos.frecuencia,
+          frecuencia: esMarbete ? "anual" : datos.frecuencia,
           fechaInicio: datos.fechaInicio,
-          monto: Number(datos.monto),
+          monto: esMarbete ? montoMarbete : Number(datos.monto),
         }),
       });
       const resultado = (await respuesta.json()) as { error?: string };
@@ -410,10 +471,38 @@ export default function GastosRecurrentesPage() {
       const enlace = document.createElement("a");
       enlace.href = archivo;
       enlace.download = `gastos-recurrentes-${anioReporte}.pdf`;
+      document.body.appendChild(enlace);
       enlace.click();
+      enlace.remove();
       window.setTimeout(() => URL.revokeObjectURL(archivo), 1000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo descargar el PDF.");
+    } finally {
+      setDescargando(false);
+    }
+  }
+
+  async function descargarReporteCategoria() {
+    if (descargando) return;
+    setDescargando(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ anio: anioReporte, categoria: categoriaReporte, finAnio: soloFinAnio ? "1" : "0" });
+      const respuesta = await fetch(`/api/gastos-recurrentes/reporte-categoria?${params.toString()}`, { cache: "no-store" });
+      if (!respuesta.ok) {
+        const datos = (await respuesta.json()) as { error?: string };
+        throw new Error(datos.error ?? "No se pudo generar el reporte.");
+      }
+      const url = URL.createObjectURL(await respuesta.blob());
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = `reporte-${categoriaReporte}-${anioReporte}.pdf`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo descargar el reporte.");
     } finally {
       setDescargando(false);
     }
@@ -531,8 +620,39 @@ export default function GastosRecurrentesPage() {
         </article>
       </section>
 
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-[#202629]">
+        <h2 className="text-lg font-bold text-gray-950 dark:text-white">Presupuesto anual por tipo de gasto</h2>
+        <p className="mt-1 text-sm text-gray-500">Proyección de vencimientos para el año seleccionado, separada por categoría. No representa pagos realizados.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {totalesPorCategoria.map(({ categoria, total }) => (
+            <div key={categoria} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+              <p className="text-sm font-semibold text-gray-500">{ETIQUETAS_CATEGORIA_GASTO[categoria]}</p>
+              <p className="mt-1 text-xl font-extrabold text-gray-950 dark:text-white">{FORMATO_DOP.format(total)}</p>
+              <p className="text-xs text-gray-500">por año</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex flex-wrap items-end gap-3">
+          <label className="text-sm font-semibold text-gray-600 dark:text-gray-300">Categoría del PDF
+            <select value={categoriaReporte} onChange={(e) => setCategoriaReporte(e.target.value as (typeof CATEGORIAS_GASTO)[number])} className={inputClass}>
+              {CATEGORIAS_GASTO.map((categoria) => <option key={categoria} value={categoria}>{ETIQUETAS_CATEGORIA_GASTO[categoria]}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+            <input type="checkbox" checked={soloFinAnio} onChange={(e) => setSoloFinAnio(e.target.checked)} /> Solo noviembre y diciembre
+          </label>
+          <button type="button" disabled={descargando || !/^\d{4}$/.test(anioReporte)}
+            onClick={() => void descargarReporteCategoria()}
+            className="rounded-xl bg-[#D4202C] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">
+            {descargando ? "Generando..." : "Descargar PDF por categoría"}
+          </button>
+        </div>
+        <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">Proyección {soloFinAnio ? "de noviembre y diciembre" : "anual"} de {ETIQUETAS_CATEGORIA_GASTO[categoriaReporte]}: <strong>{FORMATO_DOP.format(totalCategoria)}</strong></p>
+        <p className="mt-1 text-xs text-gray-500">El PDF usa el año elegido arriba y calcula los vencimientos programados según la fecha de inicio.</p>
+      </section>
+
       {formularioAbierto && (
-        <section className="mb-6 rounded-2xl border border-red-100 bg-white p-5 shadow-sm dark:border-red-950 dark:bg-[#202629] sm:p-6">
+        <section ref={formularioRef} className="mb-6 scroll-mt-24 rounded-2xl border border-red-100 bg-white p-5 shadow-sm dark:border-red-950 dark:bg-[#202629] sm:p-6">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#D4202C]">
@@ -572,25 +692,54 @@ export default function GastosRecurrentesPage() {
             </label>
             <label className="text-xs font-bold uppercase tracking-wide text-gray-600 dark:text-gray-300">
               Nombre del gasto
-              <input
+              <select
                 required
-                maxLength={120}
                 value={datos.nombre}
-                onChange={(evento) => setDatos({ ...datos, nombre: evento.target.value })}
-                placeholder="Ej. Seguro anual"
+                onChange={(evento) => {
+                  const nombre = evento.target.value;
+                  const categoria = CATEGORIAS_GASTO.find(
+                    (item) => ETIQUETAS_CATEGORIA_GASTO[item] === nombre
+                  );
+                  setDatos((actual) => ({
+                    ...actual,
+                    nombre,
+                    categoria: categoria ?? actual.categoria,
+                    frecuencia:
+                      categoria === "marbete" || categoria === "seguro"
+                        ? "anual"
+                        : actual.frecuencia,
+                  }));
+                }}
                 className={inputClass}
-              />
+              >
+                <option value="">Selecciona un gasto</option>
+                {CATEGORIAS_GASTO.map((categoria) => (
+                  <option key={categoria} value={ETIQUETAS_CATEGORIA_GASTO[categoria]}>
+                    {ETIQUETAS_CATEGORIA_GASTO[categoria]}
+                  </option>
+                ))}
+                {datos.nombre &&
+                  !CATEGORIAS_GASTO.some(
+                    (categoria) => ETIQUETAS_CATEGORIA_GASTO[categoria] === datos.nombre
+                  ) && <option value={datos.nombre}>{datos.nombre} (registrado)</option>}
+              </select>
             </label>
             <label className="text-xs font-bold uppercase tracking-wide text-gray-600 dark:text-gray-300">
               Tipo
               <select
                 value={datos.categoria}
-                onChange={(evento) =>
-                  setDatos({
-                    ...datos,
-                    categoria: evento.target.value as DatosFormulario["categoria"],
-                  })
-                }
+                onChange={(evento) => {
+                  const categoria = evento.target.value as DatosFormulario["categoria"];
+                  setDatos((actual) => ({
+                    ...actual,
+                    categoria,
+                    nombre: ETIQUETAS_CATEGORIA_GASTO[categoria],
+                    frecuencia:
+                      categoria === "marbete" || categoria === "seguro"
+                        ? "anual"
+                        : actual.frecuencia,
+                  }));
+                }}
                 className={inputClass}
               >
                 {CATEGORIAS_GASTO.map((categoria) => (
@@ -603,7 +752,8 @@ export default function GastosRecurrentesPage() {
             <label className="text-xs font-bold uppercase tracking-wide text-gray-600 dark:text-gray-300">
               Frecuencia
               <select
-                value={datos.frecuencia}
+                value={esMarbete ? "anual" : datos.frecuencia}
+                disabled={esMarbete}
                 onChange={(evento) =>
                   setDatos({
                     ...datos,
@@ -635,11 +785,17 @@ export default function GastosRecurrentesPage() {
                 step="0.01"
                 type="number"
                 inputMode="decimal"
-                value={datos.monto}
+                value={esMarbete ? String(montoMarbete ?? "") : datos.monto}
                 onChange={(evento) => setDatos({ ...datos, monto: evento.target.value })}
-                placeholder="0.00"
-                className={inputClass}
+                readOnly={esMarbete}
+                placeholder={esMarbete ? "Selecciona un vehículo" : "0.00"}
+                className={`${inputClass} ${esMarbete ? "cursor-not-allowed bg-gray-100 dark:bg-gray-800" : ""}`}
               />
+              {esMarbete && (
+                <span className="mt-1 block text-[11px] normal-case tracking-normal text-gray-500 dark:text-gray-400">
+                  Calculado automáticamente por año del vehículo: desde 2022 RD$4,000; hasta 2021 RD$2,000.
+                </span>
+              )}
             </label>
             <div className="flex flex-wrap items-end gap-2 sm:col-span-2 xl:col-span-3">
               <button

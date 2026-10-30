@@ -330,6 +330,27 @@ export default function Home() {
   const [paginaActual, setPaginaActual] = useState(1);
   const vehiculosListaRef = useRef<HTMLDivElement>(null);
   const vehiculosPorPagina = 9;
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+  // Animaciones de aparición sin dependencias externas.
+  useEffect(() => {
+    const elementos = document.querySelectorAll<HTMLElement>("[data-reveal]");
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
+      elementos.forEach((elemento) => elemento.classList.add("reveal-visible"));
+      return;
+    }
+    const observador = new IntersectionObserver((entradas) => {
+      entradas.forEach((entrada) => {
+        if (entrada.isIntersecting) {
+          entrada.target.classList.add("reveal-visible");
+          observador.unobserve(entrada.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: "0px 0px -25px 0px" });
+    elementos.forEach((elemento) => observador.observe(elemento));
+    return () => observador.disconnect();
+  }, [cargando, mostrarFiltros, paginaActual]);
+
 
   // Filtros
   const [busqueda, setBusqueda] = useState("");
@@ -341,7 +362,6 @@ export default function Home() {
   const [precioMax, setPrecioMax] = useState("");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const texto = TEXTOS[idioma];
   const rangoFechasInvalido =
     Boolean(fechaInicio && fechaFin) && fechaFin < fechaInicio;
@@ -493,8 +513,22 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
+      <style jsx global>{`
+        html { scroll-behavior: smooth; }
+        [data-reveal] { opacity: 0; transform: translateY(26px); transition: opacity .75s ease, transform .75s cubic-bezier(.2,.8,.2,1); }
+        [data-reveal].reveal-visible { opacity: 1; transform: translateY(0); }
+        @keyframes showroom-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes showroom-zoom { from { transform: scale(1.08); } to { transform: scale(1); } }
+        .showroom-enter { animation: showroom-in .85s both; }
+        .showroom-hero-image { animation: showroom-zoom 10s ease-out both; }
+        @media (prefers-reduced-motion: reduce) {
+          html { scroll-behavior: auto; }
+          [data-reveal] { opacity: 1; transform: none; transition: none; }
+          .showroom-enter, .showroom-hero-image { animation: none; }
+        }
+      `}</style>
       {/* NAVBAR */}
-      <nav className="absolute left-0 right-0 top-0 z-50 border-b border-white/10 bg-black/40 backdrop-blur-md">
+      <nav className="absolute left-0 right-0 top-0 z-50 border-b border-white/10 bg-black/45 shadow-lg shadow-black/10 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <a href="#inicio" className="flex items-center gap-3 text-white">
             <Image
@@ -573,7 +607,7 @@ export default function Home() {
             fill
             unoptimized
             sizes="100vw"
-            className="object-cover"
+            className="showroom-hero-image object-cover"
           />
           <div className="absolute inset-0 bg-black/70" />
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-black/10" />
@@ -581,14 +615,14 @@ export default function Home() {
           <div className="absolute -right-10 top-0 hidden h-full w-6 skew-x-[-14deg] bg-white/90 lg:block" />
         </div>
 
-        <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-12 px-6 pt-28 lg:grid-cols-[1.3fr_1fr]">
+        <div className="showroom-enter relative z-10 mx-auto grid w-full max-w-7xl items-center gap-12 px-6 pt-28 lg:grid-cols-[1.3fr_1fr]">
           <div>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#D4202C]/60 bg-[#D4202C]/15 px-4 py-2 text-sm font-medium text-white backdrop-blur">
               <CheckCircle2 size={16} className="text-[#D4202C]" />
               {texto.heroBadge}
             </div>
 
-            <h2 className="text-5xl font-extrabold leading-[1.03] tracking-tight text-white md:text-7xl">
+            <h2 className="text-5xl font-black leading-[1.03] tracking-tight text-white drop-shadow-2xl md:text-7xl">
               {texto.heroTitle}
             </h2>
 
@@ -601,7 +635,7 @@ export default function Home() {
             <div className="mt-9 flex flex-wrap gap-4">
               <a
                 href="#vehiculos"
-                className="group flex items-center gap-2 rounded-lg bg-[#D4202C] px-7 py-4 font-bold text-white shadow-xl shadow-red-900/40 transition hover:bg-[#b81b26]"
+                className="group flex items-center gap-2 rounded-xl bg-[#D4202C] px-7 py-4 font-bold text-white shadow-xl shadow-red-900/40 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.03] hover:bg-[#b81b26] hover:shadow-red-600/40 motion-reduce:transform-none"
               >
                 {texto.viewFleet}
                 <ArrowRight
@@ -612,7 +646,7 @@ export default function Home() {
 
               <a
                 href="#servicios"
-                className="rounded-lg border border-white/40 px-7 py-4 font-semibold text-white transition hover:bg-white hover:text-black"
+                className="rounded-xl border border-white/40 bg-white/5 px-7 py-4 font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:text-black motion-reduce:transform-none"
               >
                 {texto.whyChooseUs}
               </a>
@@ -640,7 +674,7 @@ export default function Home() {
                 alt="Logo El Bien Amado Rent A Car"
                 width={320}
                 height={320}
-                className="relative h-80 w-80 rounded-full shadow-2xl shadow-black ring-4 ring-[#D4202C]"
+                className="relative h-80 w-80 rounded-full shadow-2xl shadow-black ring-4 ring-[#D4202C] transition-transform duration-700 hover:rotate-3 hover:scale-105 motion-reduce:transform-none"
               />
             </div>
           </div>
@@ -651,8 +685,8 @@ export default function Home() {
       <section id="servicios" className="border-b bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-16 md:grid-cols-3">
           {SERVICIOS.map(({ icono: Icon }, index) => (
-            <div key={index} className="flex gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-black text-white">
+            <div key={index} data-reveal className="group flex gap-4 rounded-2xl border border-transparent p-4 transition-all duration-300 hover:-translate-y-1 hover:border-red-100 hover:bg-red-50/50 hover:shadow-lg motion-reduce:transform-none">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-black text-white transition-all duration-300 group-hover:rotate-[-5deg] group-hover:bg-[#D4202C] motion-reduce:transform-none">
                 <Icon size={23} />
               </div>
               <div>
@@ -671,7 +705,7 @@ export default function Home() {
       {/* CATÁLOGO */}
       <section id="vehiculos" className="bg-gray-50">
         <div className="mx-auto max-w-7xl px-6 py-20">
-          <div className="mb-12 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div data-reveal className="mb-12 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
               <p className="text-sm font-bold text-[#D4202C]">{texto.fleet}</p>
               <h2 className="mt-3 text-4xl font-extrabold tracking-tight md:text-5xl">
@@ -690,7 +724,7 @@ export default function Home() {
 
           {/* FILTROS */}
           {(!cargando || rangoFechasInvalido) && (
-            <div className="mb-10 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200 sm:p-5">
+            <div className="mb-10 rounded-2xl bg-white p-4 shadow-[0_12px_40px_rgba(0,0,0,.05)] ring-1 ring-gray-200 transition-shadow duration-300 hover:shadow-[0_18px_50px_rgba(0,0,0,.09)] sm:p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="relative flex-1">
                   <Search
@@ -1048,7 +1082,7 @@ export default function Home() {
         <div className="absolute -left-20 top-0 h-full w-40 skew-x-[-14deg] bg-[#D4202C]" />
 
         <div className="relative mx-auto max-w-7xl px-6 py-20">
-          <div className="grid items-center gap-10 md:grid-cols-2">
+          <div data-reveal className="grid items-center gap-10 md:grid-cols-2">
             <div className="md:pl-20">
               <h2 className="text-4xl font-extrabold tracking-tight text-white md:text-5xl">
                 {texto.finalTitle}
@@ -1060,7 +1094,7 @@ export default function Home() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:border-[#D4202C]/60 hover:bg-white/10 hover:shadow-xl motion-reduce:transform-none">
                 <Star size={24} className="text-[#D4202C]" />
                 <p className="mt-4 text-2xl font-extrabold text-white">
                   {texto.quality}
@@ -1070,7 +1104,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:border-[#D4202C]/60 hover:bg-white/10 hover:shadow-xl motion-reduce:transform-none">
                 <MapPin size={24} className="text-[#D4202C]" />
                 <p className="mt-4 text-base font-extrabold leading-6 text-white">
                   {texto.address}
@@ -1085,7 +1119,7 @@ export default function Home() {
                 </a>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:border-[#D4202C]/60 hover:bg-white/10 hover:shadow-xl motion-reduce:transform-none">
                 <PhoneCall size={24} className="text-[#D4202C]" />
                 <p className="mt-4 text-xl font-extrabold text-white">
                   {texto.phones}
@@ -1151,7 +1185,7 @@ export default function Home() {
         rel="noopener noreferrer"
         aria-label={texto.contactWhatsApp}
         title={texto.whatsappTitle}
-        className="fixed bottom-6 right-6 z-[100] flex h-16 w-16 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-black/25 transition duration-300 hover:scale-110 hover:bg-[#1ebe5d] focus:outline-none focus:ring-4 focus:ring-green-300"
+        className="fixed bottom-6 right-6 z-[100] flex h-16 w-16 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-black/25 ring-4 ring-white/70 transition-all duration-300 hover:-translate-y-2 hover:scale-110 hover:bg-[#1ebe5d] hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-green-300 motion-reduce:transform-none"
       >
         <MessageCircle size={32} strokeWidth={2.5} />
         <span className="absolute right-0 top-0 h-4 w-4 rounded-full border-2 border-white bg-red-500" />

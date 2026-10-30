@@ -14,6 +14,7 @@ import {
   Images,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
   X,
 } from "lucide-react";
 import type { Vehiculo as VehiculoCompleto } from "../../types/vehiculo";
@@ -494,11 +495,11 @@ export default function DetalleVehiculoPage() {
   const tipoSeguro = traducirTipoSeguro(vehiculo.tipoSeguro, idioma);
 
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900">
+    <main className="min-h-screen bg-[#f5f5f6] text-gray-900">
       {/* ENCABEZADO */}
-      <header className="border-b bg-black text-white">
+      <header className="relative overflow-hidden border-b border-white/10 bg-black text-white shadow-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-6">
-          <a href="/" className="flex items-center gap-3">
+          <a href="/" className="group flex items-center gap-3 rounded-xl p-2 transition-all duration-300 hover:translate-x-1 hover:bg-gray-50 motion-reduce:transform-none">
             <img
               src="/logo.jpeg"
               alt="El Bien Amado Rent A Car"
@@ -533,13 +534,13 @@ export default function DetalleVehiculoPage() {
       </header>
 
       {/* DETALLE DEL VEHÍCULO */}
-      <section className="mx-auto max-w-7xl px-5 py-8 sm:px-6 sm:py-12">
-        <div className="mb-7">
-          <p className="text-sm font-bold uppercase tracking-wider text-[#D4202C]">
-            {texto.fleet}
+      <section className="relative mx-auto max-w-7xl px-5 py-8 sm:px-6 sm:py-12">
+        <div className="mb-8 animate-[showroomRise_650ms_ease-out_both]">
+          <p className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.18em] text-[#D4202C]">
+            <Sparkles size={14} /> {texto.fleet}
           </p>
 
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl">
+          <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
             {vehiculo.marca} {vehiculo.modelo}
           </h1>
 
@@ -548,21 +549,21 @@ export default function DetalleVehiculoPage() {
           </p>
         </div>
 
-        <div className="grid items-start gap-8 lg:grid-cols-[1.4fr_0.8fr]">
+        <div className="grid items-start gap-8 lg:grid-cols-[1.35fr_0.85fr]">
           {/* GALERÍA */}
-          <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gray-100 sm:aspect-[16/10]">
+          <div className="group/gallery min-w-0 overflow-hidden rounded-[1.75rem] border border-white bg-white shadow-[0_20px_65px_rgba(0,0,0,0.09)] transition-all duration-500 hover:shadow-[0_25px_80px_rgba(0,0,0,0.15)] animate-[showroomRise_700ms_ease-out_both] motion-reduce:animate-none">
+            <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-br from-gray-100 via-white to-gray-200 sm:aspect-[16/10]">
               {fotoActual ? (
                 <button
                   type="button"
                   onClick={() => setVisorAbierto(true)}
                   aria-label={texto.enlargePhoto}
-                  className="h-full w-full cursor-zoom-in"
+                  className="h-full w-full cursor-zoom-in overflow-hidden"
                 >
                   <img
                     src={fotoActual.url}
                     alt={`${vehiculo.marca} ${vehiculo.modelo} - ${texto.photo} ${fotoSeleccionada + 1}`}
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-contain transition-transform duration-700 ease-out hover:scale-[1.055] motion-reduce:transform-none"
                   />
                 </button>
               ) : (
@@ -585,7 +586,7 @@ export default function DetalleVehiculoPage() {
                     type="button"
                     onClick={() => cambiarFoto(-1)}
                     aria-label={texto.previousPhoto}
-                    className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-[#D4202C]"
+                    className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white shadow-xl backdrop-blur-md transition-all duration-300 hover:scale-110 hover:bg-[#D4202C] active:scale-95 motion-reduce:transform-none"
                   >
                     <ChevronLeft size={24} />
                   </button>
@@ -594,12 +595,12 @@ export default function DetalleVehiculoPage() {
                     type="button"
                     onClick={() => cambiarFoto(1)}
                     aria-label={texto.nextPhoto}
-                    className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-[#D4202C]"
+                    className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white shadow-xl backdrop-blur-md transition-all duration-300 hover:scale-110 hover:bg-[#D4202C] active:scale-95 motion-reduce:transform-none"
                   >
                     <ChevronRight size={24} />
                   </button>
 
-                  <span className="absolute bottom-3 right-3 rounded-full bg-black/75 px-3 py-1.5 text-xs font-semibold text-white">
+                  <span className="absolute bottom-4 right-4 rounded-full border border-white/20 bg-black/75 px-4 py-2 text-xs font-bold tracking-wider text-white backdrop-blur-lg">
                     {fotoSeleccionada + 1} / {fotos.length}
                   </span>
                 </>
@@ -608,7 +609,7 @@ export default function DetalleVehiculoPage() {
 
             {/* MINIATURAS */}
             {fotos.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto border-t p-3 sm:p-4">
+              <div className="flex gap-3 overflow-x-auto border-t border-gray-100 bg-white p-3 sm:p-4">
                 {fotos.map((foto, indice) => (
                   <button
                     type="button"
@@ -616,7 +617,7 @@ export default function DetalleVehiculoPage() {
                     onClick={() => setFotoSeleccionada(indice)}
                     aria-label={texto.viewPhoto(indice + 1)}
                     aria-pressed={fotoSeleccionada === indice}
-                    className={`h-20 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-24 sm:w-28 ${
+                    className={`h-20 w-24 shrink-0 overflow-hidden rounded-xl border-2 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg motion-reduce:transform-none sm:h-24 sm:w-28 ${
                       fotoSeleccionada === indice
                         ? "border-[#D4202C]"
                         : "border-transparent opacity-70 hover:opacity-100"
@@ -625,7 +626,7 @@ export default function DetalleVehiculoPage() {
                     <img
                       src={foto.url}
                       alt={texto.thumbnail(indice + 1)}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-500 hover:scale-110 motion-reduce:transform-none"
                     />
                   </button>
                 ))}
@@ -641,7 +642,8 @@ export default function DetalleVehiculoPage() {
           </div>
 
           {/* INFORMACIÓN Y RESERVA */}
-          <aside className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+          <aside className="relative overflow-hidden rounded-[1.75rem] border border-white bg-white p-6 shadow-[0_20px_65px_rgba(0,0,0,0.09)] transition-shadow duration-500 hover:shadow-[0_25px_75px_rgba(212,32,44,0.10)] sm:p-8 lg:sticky lg:top-6 animate-[showroomRise_800ms_ease-out_both] motion-reduce:animate-none">
+            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-black via-[#D4202C] to-black" />
             <div className="flex items-center justify-between gap-3">
               <span
                 className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${
@@ -667,7 +669,7 @@ export default function DetalleVehiculoPage() {
             </p>
 
             <div className="mt-1 flex flex-wrap items-baseline gap-2">
-              <span className="text-4xl font-extrabold tracking-tight text-[#D4202C]">
+              <span className="text-4xl font-black tracking-tight text-[#D4202C] sm:text-5xl">
                 USD$ {vehiculo.precioDia.toLocaleString(idioma === "es" ? "es-DO" : "en-US")}
               </span>
 
@@ -684,8 +686,8 @@ export default function DetalleVehiculoPage() {
 
             <div className="mt-4 space-y-4">
               {/* VEHÍCULO */}
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+              <div className="group flex items-center gap-3 rounded-xl p-2 transition-all duration-300 hover:translate-x-1 hover:bg-gray-50 motion-reduce:transform-none">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-800 transition-all duration-300 group-hover:bg-red-50 group-hover:text-[#D4202C]">
                   <Car size={20} />
                 </div>
 
@@ -701,8 +703,8 @@ export default function DetalleVehiculoPage() {
               </div>
 
               {/* COLOR */}
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+              <div className="group flex items-center gap-3 rounded-xl p-2 transition-all duration-300 hover:translate-x-1 hover:bg-gray-50 motion-reduce:transform-none">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-800 transition-all duration-300 group-hover:bg-red-50 group-hover:text-[#D4202C]">
                   <Palette size={20} />
                 </div>
 
@@ -718,8 +720,8 @@ export default function DetalleVehiculoPage() {
               </div>
 
               {/* SEGURO */}
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+              <div className="group flex items-center gap-3 rounded-xl p-2 transition-all duration-300 hover:translate-x-1 hover:bg-gray-50 motion-reduce:transform-none">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-800 transition-all duration-300 group-hover:bg-red-50 group-hover:text-[#D4202C]">
                   <ShieldCheck size={20} />
                 </div>
 
@@ -735,8 +737,8 @@ export default function DetalleVehiculoPage() {
               </div>
 
               {/* ALQUILER */}
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+              <div className="group flex items-center gap-3 rounded-xl p-2 transition-all duration-300 hover:translate-x-1 hover:bg-gray-50 motion-reduce:transform-none">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-800 transition-all duration-300 group-hover:bg-red-50 group-hover:text-[#D4202C]">
                   <CalendarDays size={20} />
                 </div>
 
@@ -839,9 +841,9 @@ export default function DetalleVehiculoPage() {
 
                 <button
                   type="submit"
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4202C] px-5 py-4 font-bold text-white transition hover:bg-black"
+                  className="group relative mt-5 flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-[#D4202C] px-5 py-4 font-bold text-white shadow-[0_12px_30px_rgba(212,32,44,0.25)] transition-all duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-[0_16px_35px_rgba(0,0,0,0.25)] active:scale-[0.98] motion-reduce:transform-none"
                 >
-                  <MessageCircle size={21} />
+                  <MessageCircle size={21} className="transition-transform duration-300 group-hover:rotate-[-10deg] group-hover:scale-110 motion-reduce:transform-none" />
                   {texto.askOnWhatsApp}
                 </button>
               </form>
@@ -861,7 +863,7 @@ export default function DetalleVehiculoPage() {
         <div className="mt-8">
           <a
             href="/#vehiculos"
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-bold transition hover:border-[#D4202C] hover:text-[#D4202C]"
+            className="group inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-bold shadow-sm transition-all duration-300 hover:-translate-x-1 hover:border-[#D4202C] hover:text-[#D4202C] hover:shadow-lg motion-reduce:transform-none"
           >
             <ArrowLeft size={17} />
             {texto.backToAllVehicles}
@@ -876,7 +878,7 @@ export default function DetalleVehiculoPage() {
           aria-modal="true"
           aria-label={texto.enlargedVehiclePhoto}
           onClick={() => setVisorAbierto(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 sm:p-8"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl animate-[showroomFade_200ms_ease-out_both] motion-reduce:animate-none sm:p-8"
         >
           {/* CERRAR */}
           <button
@@ -922,7 +924,7 @@ export default function DetalleVehiculoPage() {
             src={fotoActual.url}
             alt={`${vehiculo.marca} ${vehiculo.modelo} ${texto.enlargedVehiclePhoto}`}
             onClick={(evento) => evento.stopPropagation()}
-            className="max-h-[88vh] max-w-[90vw] select-none object-contain"
+            className="max-h-[88vh] max-w-[90vw] select-none object-contain drop-shadow-2xl"
           />
 
           {/* CONTADOR */}
@@ -931,6 +933,20 @@ export default function DetalleVehiculoPage() {
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        @keyframes showroomRise {
+          from { opacity: 0; transform: translateY(22px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes showroomFade {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after { scroll-behavior: auto !important; }
+        }
+      `}</style>
 
       {/* PIE DE PÁGINA */}
       <footer className="border-t-4 border-[#D4202C] bg-black px-5 py-7 text-center text-sm text-gray-400">
